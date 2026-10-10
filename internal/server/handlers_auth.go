@@ -77,6 +77,9 @@ func (s *Server) requireDashboardPassword(w http.ResponseWriter, r *http.Request
 	if s.bearerAuthorizedOrQuery(r) {
 		return false
 	}
+	if cfg.Server.AuthDisabled {
+		return false
+	}
 	writeJSON(w, http.StatusPreconditionRequired, map[string]any{
 		"error": "dashboard_password_required",
 		"message": "Set a dashboard password first — this stores or uses sensitive " +

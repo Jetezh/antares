@@ -833,7 +833,7 @@ const zh: Dict = {
   'research.oauthStep3Title': '3. 配置 OAuth 同意屏幕',
   'research.oauthStep3Desc': '选择“外部”，输入应用名与邮箱。在“测试用户”中添加您自己的 Google 邮箱（免品牌审核）。',
   'research.oauthStep4Title': '4. 创建 OAuth 客户端 ID',
-  'research.oauthStep4Desc': '进入“凭据 > 创建凭据 > OAuth 客户端 ID”，应用类型选择“Web 应用”，并添加重定向 URI：',
+  'research.oauthStep4Desc': '进入“凭据 > 创建凭据 > OAuth 客户端 ID”。桌面/本地客户端应用请选择“Desktop app”（无需填写重定向URI！）；Web服务请选择“Web application”并添加下方重定向URI：',
   'research.copyRedirectUri': '复制重定向 URI',
   'research.redirectUriCopied': 'URI 已复制',
   'research.oauthStep5Title': '5. 复制凭据',

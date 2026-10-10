@@ -90,6 +90,8 @@ type ZoteroConfig struct {
 type GDocsConfig struct {
 	Method            string `yaml:"method" json:"method"` // "webhook" or "oauth"
 	WebhookURL        string `yaml:"webhook_url" json:"webhook_url"`
+	DocumentURL       string `yaml:"document_url" json:"document_url"`
+	DocumentID        string `yaml:"document_id" json:"document_id"`
 	OAuthClientID     string `yaml:"oauth_client_id" json:"oauth_client_id"`
 	OAuthClientSecret string `yaml:"oauth_client_secret" json:"oauth_client_secret"`
 	OAuthAccessToken  string `yaml:"-" json:"-"`

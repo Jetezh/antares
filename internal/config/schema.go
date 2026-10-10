@@ -90,6 +90,7 @@ var common = map[string]bool{
 	"research.zotero.api_key":            true,
 	"research.gdocs.method":              true,
 	"research.gdocs.webhook_url":         true,
+	"research.gdocs.document_url":        true,
 	"research.gdocs.oauth_client_id":     true,
 	"research.gdocs.oauth_client_secret": true,
 }
@@ -118,6 +119,7 @@ var hidden = map[string]bool{
 	"display.modules": true,
 	"display.preset":  true,
 
+	"research.gdocs.document_id":        true,
 	"research.gdocs.oauth_access_token":  true,
 	"research.gdocs.oauth_refresh_token": true,
 }
@@ -140,6 +142,7 @@ var help = map[string]string{
 	"research.zotero.api_key":            "Your Zotero API Key with library and file permissions.",
 	"research.gdocs.method":              "Google Docs connection method: webhook (Google Apps Script) or oauth (Google Cloud).",
 	"research.gdocs.webhook_url":         "Apps Script Webhook URL for Google Docs updates.",
+	"research.gdocs.document_url":        "Active Google Docs URL to read and edit.",
 	"research.gdocs.oauth_client_id":     "Google Cloud OAuth Client ID for Google Docs API.",
 	"research.gdocs.oauth_client_secret": "Google Cloud OAuth Client Secret for Google Docs API.",
 	"model.default":                    "Model id as your provider spells it, e.g. anthropic/claude-sonnet-4.5.",

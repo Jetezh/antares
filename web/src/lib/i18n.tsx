@@ -1308,7 +1308,7 @@ const en = {
   'research.oauthStep3Title': '3. Configure OAuth Consent Screen',
   'research.oauthStep3Desc': 'Choose "External", enter app name and email. In Test Users, add your own Google email (skips Google app verification).',
   'research.oauthStep4Title': '4. Create OAuth Client ID',
-  'research.oauthStep4Desc': 'Go to Credentials > Create Credentials > OAuth client ID. Select "Web application". Add the Authorized redirect URIs below:',
+  'research.oauthStep4Desc': 'Go to Credentials > Create Credentials > OAuth client ID. For local/desktop app, select "Desktop app" (no redirect URI needed!). For web server, select "Web application" and add the Authorized redirect URI below:',
   'research.copyRedirectUri': 'Copy Redirect URI',
   'research.redirectUriCopied': 'URI Copied',
   'research.oauthStep5Title': '5. Copy Credentials',

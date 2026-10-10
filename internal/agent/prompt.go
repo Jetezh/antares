@@ -122,6 +122,20 @@ You are running as a worker for another agent. Nobody is watching your stream.
 			"Keep replies reasonably short for a chat; do not emit raw HTML.\n")
 	}
 
+	if cfg.Research.Zotero.APIKey != "" || cfg.Research.GDocs.WebhookURL != "" || cfg.Research.GDocs.DocumentURL != "" {
+		b.WriteString("\n## Connected Academic & Document Integrations\n\n")
+		if cfg.Research.Zotero.APIKey != "" {
+			fmt.Fprintf(&b, "- Zotero Library: Connected (User ID: %s). You have access to the user's Zotero collections and can format citations using zotero_collections, zotero_search, and zotero_cite.\n", cfg.Research.Zotero.UserID)
+		}
+		if cfg.Research.GDocs.WebhookURL != "" || cfg.Research.GDocs.DocumentURL != "" {
+			targetDoc := cfg.Research.GDocs.DocumentURL
+			if targetDoc == "" {
+				targetDoc = cfg.Research.GDocs.WebhookURL
+			}
+			fmt.Fprintf(&b, "- Google Docs: Connected (Target document/bridge: %s). You can read its content using gdocs_read and propose updates using gdocs_update.\n", targetDoc)
+		}
+	}
+
 	if len(active) > 0 {
 		b.WriteString("\n## Tool notes\n\n")
 		b.WriteString("- Paths given to file tools are relative to the workspace; you cannot read outside it.\n")

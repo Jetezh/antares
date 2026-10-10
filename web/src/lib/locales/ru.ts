@@ -836,7 +836,7 @@ const ru: Dict = {
   'research.oauthStep3Title': '3. Настройте экран согласия OAuth',
   'research.oauthStep3Desc': 'Выберите тип «Внешний», укажите название и email. В тестовых пользователях укажите свой Google-аккаунт.',
   'research.oauthStep4Title': '4. Создайте идентификатор клиента OAuth',
-  'research.oauthStep4Desc': 'Откройте «Учетные данные > Создать > Идентификатор клиента OAuth». Выберите «Веб-приложение» и добавьте URI перенаправления:',
+  'research.oauthStep4Desc': 'Откройте «Учетные данные > Создать > Идентификатор клиента OAuth». Для десктопного/локального приложения выберите «Desktop app» (Redirect URI не требуется!). Для веб-сервера выберите «Web application» и добавьте URI ниже:',
   'research.copyRedirectUri': 'Скопировать Redirect URI',
   'research.redirectUriCopied': 'URI скопирован',
   'research.oauthStep5Title': '5. Скопируйте ключи',

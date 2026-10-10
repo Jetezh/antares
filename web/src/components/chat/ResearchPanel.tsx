@@ -42,6 +42,8 @@ interface ResearchSettings {
   gdocs: {
     method: string
     webhook_url: string
+    document_url?: string
+    document_id?: string
     oauth_client_id: string
     oauth_client_secret: string
   }
@@ -95,8 +97,23 @@ function doGet(e) {
 export function ResearchPanel({ onClose, onInsertToChat }: ResearchPanelProps) {
   const { t } = useI18n()
   const [tab, setTab] = useState<'zotero' | 'gdocs'>('gdocs')
-  const [docUrl, setDocUrl] = useState('')
-  const [previewActive, setPreviewActive] = useState(false)
+
+  // Persistent docUrl across refresh via localStorage
+  const [docUrl, setDocUrl] = useState(() => {
+    try {
+      return localStorage.getItem('antares:gdocs-active-url') || ''
+    } catch {
+      return ''
+    }
+  })
+  const [previewActive, setPreviewActive] = useState(() => {
+    try {
+      return !!localStorage.getItem('antares:gdocs-active-url')
+    } catch {
+      return false
+    }
+  })
+
   const [searchQuery, setSearchQuery] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsTab, setSettingsTab] = useState<'zotero' | 'gdocs'>('zotero')
@@ -127,10 +144,35 @@ export function ResearchPanel({ onClose, onInsertToChat }: ResearchPanelProps) {
           setGdocsWebhookUrl(data.gdocs.webhook_url || '')
           setGdocsClientId(data.gdocs.oauth_client_id || '')
           setGdocsClientSecret(data.gdocs.oauth_client_secret || '')
+          if (data.gdocs.document_url && !docUrl) {
+            setDocUrl(data.gdocs.document_url)
+            setPreviewActive(true)
+            try {
+              localStorage.setItem('antares:gdocs-active-url', data.gdocs.document_url)
+            } catch {
+              /* ignore */
+            }
+          }
         }
       })
       .catch(() => {})
-  }, [])
+  }, [docUrl])
+
+  const handleLoadDoc = (urlVal?: string) => {
+    const val = (urlVal !== undefined ? urlVal : docUrl).trim()
+    if (!val) return
+    setPreviewActive(true)
+    try {
+      localStorage.setItem('antares:gdocs-active-url', val)
+      post('/research/settings', {
+        gdocs: {
+          document_url: val,
+        },
+      }).catch(() => {})
+    } catch {
+      // ignore
+    }
+  }
 
   const handleSaveSettings = async () => {
     setSavingSettings(true)
@@ -144,6 +186,7 @@ export function ResearchPanel({ onClose, onInsertToChat }: ResearchPanelProps) {
         gdocs: {
           method: gdocsMethod,
           webhook_url: gdocsWebhookUrl,
+          document_url: docUrl,
           oauth_client_id: gdocsClientId,
           oauth_client_secret: gdocsClientSecret,
         },
@@ -224,13 +267,20 @@ export function ResearchPanel({ onClose, onInsertToChat }: ResearchPanelProps) {
               type="text"
               placeholder={t('research.docPlaceholder')}
               value={docUrl}
-              onChange={(e) => setDocUrl(e.target.value)}
+              onChange={(e) => {
+                setDocUrl(e.target.value)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleLoadDoc()
+                }
+              }}
               className="h-8 flex-1 text-xs"
             />
             <Button
               size="sm"
               variant="outline"
-              onClick={() => setPreviewActive(true)}
+              onClick={() => handleLoadDoc()}
               disabled={!docUrl}
               className="h-8 text-xs"
             >
@@ -458,6 +508,7 @@ export function ResearchPanel({ onClose, onInsertToChat }: ResearchPanelProps) {
                   </Button>
                 </div>
 
+                {/* Conditional Fields: Webhook vs OAuth */}
                 {gdocsMethod === 'webhook' ? (
                   <div className="space-y-3">
                     <div className="space-y-1">
@@ -577,7 +628,7 @@ export function ResearchPanel({ onClose, onInsertToChat }: ResearchPanelProps) {
 
             <div className="space-y-2 rounded-[var(--radius-md)] border border-border bg-card p-3">
               <p className="font-semibold text-foreground">{t('research.oauthStep4Title')}</p>
-              <p className="text-muted-foreground">{t('research.oauthStep4Desc')}</p>
+              <p className="text-muted-foreground leading-relaxed">{t('research.oauthStep4Desc')}</p>
               <div className="flex items-center justify-between rounded-[var(--radius-sm)] border border-border bg-background p-2 font-mono text-[11px]">
                 <span className="truncate">http://localhost:5174/api/auth/google/callback</span>
                 <Button
@@ -585,7 +636,7 @@ export function ResearchPanel({ onClose, onInsertToChat }: ResearchPanelProps) {
                   variant="ghost"
                   className="h-6 gap-1 text-[10px]"
                   onClick={async () => {
-                    await copyText('http://localhost:5174/api/auth/google/callback\nhttp://127.0.0.1:8790/api/auth/google/callback')
+                    await copyText('http://localhost:5174/api/auth/google/callback')
                     setUriCopied(true)
                     setTimeout(() => setUriCopied(false), 2000)
                   }}

@@ -835,7 +835,7 @@ const ja: Dict = {
   'research.oauthStep3Title': '3. OAuth 同意画面の設定',
   'research.oauthStep3Desc': '「外部」を選択し、アプリ名とメールを入力。「テストユーザー」に自分の Google メールを追加します。',
   'research.oauthStep4Title': '4. OAuth クライアント ID の作成',
-  'research.oauthStep4Desc': '「認証情報 > 認証情報を作成 > OAuth クライアント ID」で「ウェブ アプリケーション」を選択し、リダイレクト URI を追加します:',
+  'research.oauthStep4Desc': '「認証情報 > 認証情報を作成 > OAuth クライアント ID」を開きます。デスクトップ/ローカルアプリの場合は「Desktop app」を選択（リダイレクトURI不要！）。Webアプリの場合は「Web application」を選択し、以下のURIを追加してください:',
   'research.copyRedirectUri': 'リダイレクト URI をコピー',
   'research.redirectUriCopied': 'URI をコピーしました',
   'research.oauthStep5Title': '5. 認証情報をコピー',

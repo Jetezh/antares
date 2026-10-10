@@ -192,11 +192,34 @@ function ConfigGroupFields({ editor, groups }: { editor: ConfigEditor; groups: s
   // Reset disclosure when moving between sections.
   useEffect(() => setShowAdvanced(false), [key])
 
-  const groupFields = useMemo(
-    () => editor.fields.filter((f) => groups.includes(f.group)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [editor.fields, key],
-  )
+  const groupFields = useMemo(() => {
+    const raw = editor.fields.filter((f) => groups.includes(f.group))
+    if (!groups.includes('research')) return raw
+
+    const gdocsMethod = String(
+      editor.edits['research.gdocs.method'] ??
+        (editor.data?.values as Record<string, any> | undefined)?.research?.gdocs?.method ??
+        'webhook',
+    ).toLowerCase()
+
+    return raw.filter((f) => {
+      if (gdocsMethod === 'webhook') {
+        // Hide OAuth fields when method is webhook
+        if (
+          f.path === 'research.gdocs.oauth_client_id' ||
+          f.path === 'research.gdocs.oauth_client_secret'
+        ) {
+          return false
+        }
+      } else if (gdocsMethod === 'oauth') {
+        // Hide Webhook fields when method is oauth
+        if (f.path === 'research.gdocs.webhook_url') {
+          return false
+        }
+      }
+      return true
+    })
+  }, [editor.fields, editor.edits, editor.data, groups, key])
   const visible = groupFields.filter((f) => showAdvanced || f.tier !== 'advanced')
   const hiddenCount = groupFields.length - visible.length
   const many = groups.length > 1

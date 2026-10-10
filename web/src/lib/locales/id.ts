@@ -1156,7 +1156,7 @@ const id: Dict = {
   'research.oauthStep3Title': '3. Konfigurasi OAuth Consent Screen',
   'research.oauthStep3Desc': 'Pilih "External", isi nama aplikasi dan email. Pada bagian Test Users, tambahkan email Google Anda sendiri (bebas verifikasi branding).',
   'research.oauthStep4Title': '4. Buat OAuth Client ID',
-  'research.oauthStep4Desc': 'Buka menu Credentials > Create Credentials > OAuth client ID. Pilih tipe "Web application". Tambahkan Authorized redirect URI di bawah:',
+  'research.oauthStep4Desc': 'Buka menu Credentials > Create Credentials > OAuth client ID. Untuk aplikasi desktop/lokal, pilih "Desktop app" (tidak perlu isi redirect URI!). Untuk web server, pilih "Web application" dan tambahkan Authorized redirect URI di bawah:',
   'research.copyRedirectUri': 'Salin Redirect URI',
   'research.redirectUriCopied': 'URI Tersalin',
   'research.oauthStep5Title': '5. Salin Kredensial',

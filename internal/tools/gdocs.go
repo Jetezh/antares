@@ -12,27 +12,55 @@ import (
 	"time"
 )
 
+func extractDocIDFromURL(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if idx := strings.Index(raw, "/document/d/"); idx != -1 {
+		rest := raw[idx+len("/document/d/"):]
+		if end := strings.Index(rest, "/"); end != -1 {
+			return rest[:end]
+		}
+		if end := strings.Index(rest, "?"); end != -1 {
+			return rest[:end]
+		}
+		return rest
+	}
+	return raw
+}
+
 // resolveGDocsEndpoint determines whether to use webhook or oauth/rest
 func resolveGDocsEndpoint(in Input, argWebhookURL, argDocumentID string) (method, target string, err error) {
 	webhookURL := strings.TrimSpace(argWebhookURL)
-	docID := strings.TrimSpace(argDocumentID)
+	docID := extractDocIDFromURL(argDocumentID)
 
+	preferredMethod := "webhook"
 	if in.Deps != nil && in.Deps.Config != nil {
 		cfg := in.Deps.Config
+		if cfg.Research.GDocs.Method != "" {
+			preferredMethod = strings.ToLower(cfg.Research.GDocs.Method)
+		}
 		if webhookURL == "" {
 			webhookURL = strings.TrimSpace(cfg.Research.GDocs.WebhookURL)
 		}
+		if docID == "" {
+			if cfg.Research.GDocs.DocumentID != "" {
+				docID = strings.TrimSpace(cfg.Research.GDocs.DocumentID)
+			} else if cfg.Research.GDocs.DocumentURL != "" {
+				docID = extractDocIDFromURL(cfg.Research.GDocs.DocumentURL)
+			}
+		}
 	}
 
+	if preferredMethod == "oauth" && docID != "" {
+		return "oauth", docID, nil
+	}
 	if webhookURL != "" {
 		return "webhook", webhookURL, nil
 	}
-
 	if docID != "" {
 		return "oauth", docID, nil
 	}
 
-	return "", "", fmt.Errorf("no Google Docs destination specified. Pass webhook_url or document_id (or configure research.gdocs.webhook_url in settings)")
+	return "", "", fmt.Errorf("no Google Docs destination specified. Pass webhook_url or document_id (or configure research.gdocs.webhook_url / document_url in settings)")
 }
 
 // -----------------------------------------------------------------------------
