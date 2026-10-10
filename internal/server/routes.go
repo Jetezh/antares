@@ -80,6 +80,12 @@ func (s *Server) routes() {
 	// session cookie. More specific than "/", so the SPA fallback never sees it.
 	m.HandleFunc("GET /auth/handoff", s.handleHandoffExchange)
 
+	// Google OAuth flow for Google Docs & Drive
+	m.HandleFunc("GET /api/auth/google/url", s.handleGoogleOAuthURL)
+	m.HandleFunc("GET /api/auth/google/callback", s.handleGoogleOAuthCallback)
+	m.HandleFunc("GET /api/auth/google/status", s.handleGoogleOAuthStatus)
+	m.HandleFunc("POST /api/auth/google/disconnect", s.handleGoogleOAuthDisconnect)
+
 	// Paired devices (desktop app, CLI) and the desktop contract version.
 	m.HandleFunc("GET /api/version", s.handleVersion)
 	m.HandleFunc("POST /api/devices/pair", s.handlePairDevice)

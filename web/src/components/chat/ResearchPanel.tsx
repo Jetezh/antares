@@ -129,6 +129,25 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
   const [settingsTab, setSettingsTab] = useState<'zotero' | 'gdocs'>('zotero')
   const [oauthGuideOpen, setOauthGuideOpen] = useState(false)
   const [uriCopied, setUriCopied] = useState(false)
+  const [googleConnected, setGoogleConnected] = useState(false)
+  const [connectingGoogle, setConnectingGoogle] = useState(false)
+
+  // Listen for Google OAuth completion and load connection status
+  useEffect(() => {
+    get<{ connected: boolean; has_client: boolean }>('/auth/google/status')
+      .then((res) => {
+        setGoogleConnected(!!res.connected)
+      })
+      .catch(() => {})
+
+    const handleMsg = (event: MessageEvent) => {
+      if (event.data?.type === 'gdocs:connected') {
+        setGoogleConnected(true)
+      }
+    }
+    window.addEventListener('message', handleMsg)
+    return () => window.removeEventListener('message', handleMsg)
+  }, [])
 
   // Settings State
   const [zoteroUserId, setZoteroUserId] = useState('')
@@ -593,6 +612,52 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
                         className="h-8 text-xs"
                       />
                     </div>
+
+                    {googleConnected ? (
+                      <div className="flex items-center justify-between rounded-[var(--radius-md)] border border-emerald-500/20 bg-emerald-500/10 p-2.5 text-xs text-emerald-500">
+                        <div className="flex items-center gap-1.5 font-medium">
+                          <CheckCircle className="size-4" />
+                          <span>{t('research.gdocsConnectedOauth')}</span>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-[11px] text-muted-foreground hover:text-destructive"
+                          onClick={async () => {
+                            await post('/auth/google/disconnect', {})
+                            setGoogleConnected(false)
+                          }}
+                        >
+                          {t('research.disconnectGoogle')}
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={!gdocsClientId || !gdocsClientSecret || connectingGoogle}
+                        loading={connectingGoogle}
+                        className="w-full gap-1.5 bg-emerald-600 text-xs text-white hover:bg-emerald-700"
+                        onClick={async () => {
+                          setConnectingGoogle(true)
+                          try {
+                            await handleSaveSettings()
+                            const res = await get<{ url: string }>('/auth/google/url')
+                            if (res.url) {
+                              window.open(res.url, 'google_oauth', 'width=600,height=700')
+                            }
+                          } catch {
+                            // ignore
+                          } finally {
+                            setConnectingGoogle(false)
+                          }
+                        }}
+                      >
+                        <Key className="size-3.5" />
+                        <span>{t('research.connectGoogle')}</span>
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>

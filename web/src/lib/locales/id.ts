@@ -1162,6 +1162,10 @@ const id: Dict = {
   'research.oauthStep5Title': '5. Salin Kredensial',
   'research.oauthStep5Desc': 'Salin Client ID dan Client Secret yang dihasilkan ke form pengaturan Antares.',
   'research.closeGuide': 'Tutup Panduan',
+
+  'research.gdocsConnectedOauth': 'Terhubung dengan Google Docs (OAuth)',
+  'research.connectGoogle': 'Hubungkan Akun Google (Login)',
+  'research.disconnectGoogle': 'Putuskan',
 }
 
 export default id

@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -63,6 +64,81 @@ func resolveGDocsEndpoint(in Input, argWebhookURL, argDocumentID string) (method
 	return "", "", fmt.Errorf("no Google Docs destination specified. Pass webhook_url or document_id (or configure research.gdocs.webhook_url / document_url in settings)")
 }
 
+func getActiveGoogleToken(ctx context.Context, in Input) (string, error) {
+	if in.Deps == nil || in.Deps.Store == nil || in.Deps.Config == nil {
+		return "", fmt.Errorf("runtime dependencies not available")
+	}
+	cfg := in.Deps.Config
+	clientID := strings.TrimSpace(cfg.Research.GDocs.OAuthClientID)
+	clientSecret := strings.TrimSpace(cfg.Research.GDocs.OAuthClientSecret)
+	if clientID == "" || clientSecret == "" {
+		return "", fmt.Errorf("Google OAuth Client ID or Client Secret is missing. Please configure them in Research Settings")
+	}
+
+	refreshToken, _ := in.Deps.Store.GetKV(ctx, "research:gdocs:refresh_token")
+	accessToken, _ := in.Deps.Store.GetKV(ctx, "research:gdocs:access_token")
+	expiryStr, _ := in.Deps.Store.GetKV(ctx, "research:gdocs:token_expiry")
+	var expiresAt int64
+	if expiryStr != "" {
+		expiresAt, _ = strconv.ParseInt(expiryStr, 10, 64)
+	}
+
+	// If access token is still valid (> 2 minutes remaining), reuse it
+	if accessToken != "" && time.Now().Unix() < (expiresAt-120) {
+		return accessToken, nil
+	}
+
+	if refreshToken == "" {
+		if accessToken != "" {
+			return accessToken, nil
+		}
+		return "", fmt.Errorf("Google account is not connected yet. Click 'Hubungkan Akun Google' in Research Settings")
+	}
+
+	// Refresh token via Google OAuth endpoint
+	data := url.Values{}
+	data.Set("client_id", clientID)
+	data.Set("client_secret", clientSecret)
+	data.Set("refresh_token", refreshToken)
+	data.Set("grant_type", "refresh_token")
+
+	req, err := http.NewRequestWithContext(ctx, "POST", "https://oauth2.googleapis.com/token", strings.NewReader(data.Encode()))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("Google token refresh request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("Google token refresh error (%d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var res struct {
+		AccessToken string `json:"access_token"`
+		ExpiresIn   int    `json:"expires_in"`
+	}
+	if err := json.Unmarshal(bodyBytes, &res); err != nil {
+		return "", err
+	}
+	if res.AccessToken == "" {
+		return "", fmt.Errorf("empty access token returned on refresh")
+	}
+
+	// Cache new access token
+	_ = in.Deps.Store.SetKV(ctx, "research:gdocs:access_token", res.AccessToken)
+	newExpiry := time.Now().Add(time.Duration(res.ExpiresIn) * time.Second).Unix()
+	_ = in.Deps.Store.SetKV(ctx, "research:gdocs:token_expiry", strconv.FormatInt(newExpiry, 10))
+
+	return res.AccessToken, nil
+}
+
 // -----------------------------------------------------------------------------
 // 1. gdocs_read
 // -----------------------------------------------------------------------------
@@ -78,7 +154,7 @@ func (gdocsReadTool) RequiresApproval() bool { return false }
 func (gdocsReadTool) Schema() map[string]any {
 	return schema(map[string]any{
 		"webhook_url": prop("string", "Google Apps Script Webhook URL for this document (optional if configured)."),
-		"document_id": prop("string", "Google Docs Document ID (e.g. from the URL https://docs.google.com/document/d/<id>/edit)."),
+		"document_id": prop("string", "Google Docs Document ID or full URL (optional if configured)."),
 	})
 }
 
@@ -140,8 +216,61 @@ func (gdocsReadTool) Execute(ctx context.Context, in Input) Result {
 		return Text(string(bodyBytes))
 	}
 
-	// OAuth mode with document_id
-	return Text(fmt.Sprintf("OAuth mode selected for Document ID: %s. (Ensure Google Cloud OAuth is authenticated or use Webhook mode).", target))
+	// OAuth mode with document_id: call Google Docs REST API
+	token, err := getActiveGoogleToken(ctx, in)
+	if err != nil {
+		return Errorf("%v", err)
+	}
+
+	reqURL := fmt.Sprintf("https://docs.googleapis.com/v1/documents/%s", url.PathEscape(target))
+	req, err := http.NewRequestWithContext(ctx, "GET", reqURL, nil)
+	if err != nil {
+		return Errorf("create request: %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return Errorf("fetch google doc via REST API: %v", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return Errorf("Google Docs API returned HTTP %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var doc struct {
+		Title string `json:"title"`
+		Body  struct {
+			Content []struct {
+				Paragraph *struct {
+					Elements []struct {
+						TextRun *struct {
+							Content string `json:"content"`
+						} `json:"textRun"`
+					} `json:"elements"`
+				} `json:"paragraph"`
+			} `json:"content"`
+		} `json:"body"`
+	}
+
+	if err := json.Unmarshal(bodyBytes, &doc); err != nil {
+		return Errorf("parse document structure: %v", err)
+	}
+
+	var sb strings.Builder
+	for _, c := range doc.Body.Content {
+		if c.Paragraph != nil {
+			for _, elem := range c.Paragraph.Elements {
+				if elem.TextRun != nil {
+					sb.WriteString(elem.TextRun.Content)
+				}
+			}
+		}
+	}
+
+	return Text(fmt.Sprintf("Google Doc: %s (ID: %s)\n\n%s", doc.Title, target, strings.TrimSpace(sb.String())))
 }
 
 // -----------------------------------------------------------------------------
@@ -173,7 +302,7 @@ func (gdocsUpdateTool) Schema() map[string]any {
 			"items":       map[string]any{"type": "string"},
 		},
 		"webhook_url": prop("string", "Google Apps Script Webhook URL (optional if configured)."),
-		"document_id": prop("string", "Google Docs Document ID (optional)."),
+		"document_id": prop("string", "Google Docs Document ID or full URL (optional if configured)."),
 	}, "text")
 }
 
@@ -265,5 +394,83 @@ func (gdocsUpdateTool) Execute(ctx context.Context, in Input) Result {
 		}
 	}
 
-	return Text(fmt.Sprintf("OAuth batchUpdate queued for Document ID: %s. Update text: %q", target, args.Text))
+	// OAuth mode with document_id: call Google Docs REST API batchUpdate
+	token, err := getActiveGoogleToken(ctx, in)
+	if err != nil {
+		return Errorf("%v", err)
+	}
+
+	var requests []map[string]any
+
+	contentToInsert := args.Text
+	if args.Heading != "" {
+		contentToInsert = args.Heading + "\n" + contentToInsert
+	}
+	if len(args.Citations) > 0 {
+		contentToInsert += " (" + strings.Join(args.Citations, "; ") + ")"
+	}
+	if len(args.Bibliography) > 0 {
+		contentToInsert += "\n\nDaftar Pustaka:\n"
+		for i, bib := range args.Bibliography {
+			contentToInsert += fmt.Sprintf("[%d] %s\n", i+1, bib)
+		}
+	}
+
+	requests = append(requests, map[string]any{
+		"insertText": map[string]any{
+			"endOfSegmentLocation": map[string]any{},
+			"text":                 "\n" + contentToInsert + "\n",
+		},
+	})
+
+	batchReq := map[string]any{
+		"requests": requests,
+	}
+
+	batchBytes, err := json.Marshal(batchReq)
+	if err != nil {
+		return Errorf("marshal batchUpdate request: %v", err)
+	}
+
+	reqURL := fmt.Sprintf("https://docs.googleapis.com/v1/documents/%s:batchUpdate", url.PathEscape(target))
+	req, err := http.NewRequestWithContext(ctx, "POST", reqURL, bytes.NewReader(batchBytes))
+	if err != nil {
+		return Errorf("create request: %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return Errorf("send batchUpdate to Google Docs: %v", err)
+	}
+	defer resp.Body.Close()
+
+	respBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return Errorf("Google Docs API returned HTTP %d: %s", resp.StatusCode, string(respBytes))
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("Berhasil memperbarui Google Doc (ID: %s via Google Docs API):\n", target))
+	if args.Heading != "" {
+		sb.WriteString(fmt.Sprintf("• Heading: %s\n", args.Heading))
+	}
+	sb.WriteString(fmt.Sprintf("• Teks ditambahkan: %d karakter\n", len(args.Text)))
+	if len(args.Citations) > 0 {
+		sb.WriteString(fmt.Sprintf("• Sitasi disertakan: %s\n", strings.Join(args.Citations, "; ")))
+	}
+	if len(args.Bibliography) > 0 {
+		sb.WriteString(fmt.Sprintf("• Daftar Pustaka ditambahkan: %d entri\n", len(args.Bibliography)))
+	}
+
+	return Result{
+		Content: strings.TrimSpace(sb.String()),
+		Meta: map[string]any{
+			"status":       "success",
+			"target":       target,
+			"citations":    args.Citations,
+			"bibliography": args.Bibliography,
+		},
+	}
 }

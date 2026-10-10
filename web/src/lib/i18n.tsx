@@ -1314,6 +1314,10 @@ const en = {
   'research.oauthStep5Title': '5. Copy Credentials',
   'research.oauthStep5Desc': 'Copy the generated Client ID and Client Secret into the Antares settings form.',
   'research.closeGuide': 'Close Guide',
+
+  'research.gdocsConnectedOauth': 'Connected with Google Docs (OAuth)',
+  'research.connectGoogle': 'Connect Google Account (Sign In)',
+  'research.disconnectGoogle': 'Disconnect',
 } as const
 
 export type MessageKey = keyof typeof en

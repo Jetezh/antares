@@ -66,18 +66,28 @@ func (s *Server) handleSaveResearchSettings(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	cfg.Research.Zotero.UserID = body.Zotero.UserID
-	cfg.Research.Zotero.APIKey = body.Zotero.APIKey
+	if body.Zotero.UserID != "" {
+		cfg.Research.Zotero.UserID = body.Zotero.UserID
+	}
+	if body.Zotero.APIKey != "" {
+		cfg.Research.Zotero.APIKey = body.Zotero.APIKey
+	}
 	if body.GDocs.Method != "" {
 		cfg.Research.GDocs.Method = body.GDocs.Method
 	}
-	cfg.Research.GDocs.WebhookURL = body.GDocs.WebhookURL
-	cfg.Research.GDocs.DocumentURL = body.GDocs.DocumentURL
+	if body.GDocs.WebhookURL != "" {
+		cfg.Research.GDocs.WebhookURL = body.GDocs.WebhookURL
+	}
 	if body.GDocs.DocumentURL != "" {
+		cfg.Research.GDocs.DocumentURL = body.GDocs.DocumentURL
 		cfg.Research.GDocs.DocumentID = extractGoogleDocID(body.GDocs.DocumentURL)
 	}
-	cfg.Research.GDocs.OAuthClientID = body.GDocs.OAuthClientID
-	cfg.Research.GDocs.OAuthClientSecret = body.GDocs.OAuthClientSecret
+	if body.GDocs.OAuthClientID != "" {
+		cfg.Research.GDocs.OAuthClientID = body.GDocs.OAuthClientID
+	}
+	if body.GDocs.OAuthClientSecret != "" {
+		cfg.Research.GDocs.OAuthClientSecret = body.GDocs.OAuthClientSecret
+	}
 
 	if err := config.Save(cfg); err != nil {
 		writeError(w, http.StatusInternalServerError, err)

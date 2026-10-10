@@ -842,6 +842,10 @@ const ru: Dict = {
   'research.oauthStep5Title': '5. Скопируйте ключи',
   'research.oauthStep5Desc': 'Вставьте полученные Client ID и Client Secret в поля настроек Antares выше.',
   'research.closeGuide': 'Закрыть руководство',
+
+  'research.gdocsConnectedOauth': 'Подключено к Google Docs (OAuth)',
+  'research.connectGoogle': 'Подключить Google-аккаунт (Войти)',
+  'research.disconnectGoogle': 'Отключить',
 }
 
 export default ru

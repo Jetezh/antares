@@ -261,7 +261,10 @@ func applyEnv(c *Config) {
 
 	str("ZOTERO_USER_ID", &c.Research.Zotero.UserID)
 	str("ZOTERO_API_KEY", &c.Research.Zotero.APIKey)
+	str("GDOCS_METHOD", &c.Research.GDocs.Method)
 	str("GDOCS_WEBHOOK_URL", &c.Research.GDocs.WebhookURL)
+	str("GDOCS_OAUTH_CLIENT_ID", &c.Research.GDocs.OAuthClientID)
+	str("GDOCS_OAUTH_CLIENT_SECRET", &c.Research.GDocs.OAuthClientSecret)
 
 	// Provider API keys: explicit ANTARES_PROVIDER_<NAME>_API_KEY wins, then the
 	// provider's declared api_key_env, then conventional vendor variables.

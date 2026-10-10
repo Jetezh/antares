@@ -841,6 +841,10 @@ const ja: Dict = {
   'research.oauthStep5Title': '5. 認証情報をコピー',
   'research.oauthStep5Desc': '生成されたクライアント ID とクライアント シークレットを Antares の設定フォームに入力します。',
   'research.closeGuide': 'ガイドを閉じる',
+
+  'research.gdocsConnectedOauth': 'Google Docs と接続済み (OAuth)',
+  'research.connectGoogle': 'Google アカウントを連携 (ログイン)',
+  'research.disconnectGoogle': '連携解除',
 }
 
 export default ja

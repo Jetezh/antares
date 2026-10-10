@@ -839,6 +839,10 @@ const zh: Dict = {
   'research.oauthStep5Title': '5. 复制凭据',
   'research.oauthStep5Desc': '将生成的客户端 ID 和客户端密钥填入上方 Antares 设置中。',
   'research.closeGuide': '关闭指南',
+
+  'research.gdocsConnectedOauth': '已关联 Google Docs (OAuth)',
+  'research.connectGoogle': '关联 Google 账户 (登录)',
+  'research.disconnectGoogle': '解除关联',
 }
 
 export default zh
