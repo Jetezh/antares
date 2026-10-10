@@ -4,6 +4,16 @@ set -e
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
 
+if [ -f "$ROOT/.env" ]; then
+  set -a
+  source "$ROOT/.env"
+  set +a
+fi
+
+if [ -n "$ANTARES_HOME" ]; then
+  mkdir -p "$ANTARES_HOME"
+fi
+
 # Colors
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
@@ -33,7 +43,7 @@ if [ ! -x "$BUN" ]; then
 fi
 
 echo -e "${CYAN}Antares Dev${NC}"
-echo -e "  Backend: ${GREEN}http://localhost:8787${NC}"
+echo -e "  Backend: ${GREEN}http://localhost:${ANTARES_PORT:-8790}${NC}"
 echo -e "  Frontend: ${GREEN}http://localhost:${VITE_PORT:-5174}${NC}"
 echo -e "  ${YELLOW}Open http://localhost:${VITE_PORT:-5174} in your browser${NC}"
 echo ""

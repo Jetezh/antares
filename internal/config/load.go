@@ -259,6 +259,10 @@ func applyEnv(c *Config) {
 	str("TELEGRAM_BOT_TOKEN", &c.Gateway.Telegram.BotToken)
 	str("DISCORD_BOT_TOKEN", &c.Gateway.Discord.BotToken)
 
+	str("ZOTERO_USER_ID", &c.Research.Zotero.UserID)
+	str("ZOTERO_API_KEY", &c.Research.Zotero.APIKey)
+	str("GDOCS_WEBHOOK_URL", &c.Research.GDocs.WebhookURL)
+
 	// Provider API keys: explicit ANTARES_PROVIDER_<NAME>_API_KEY wins, then the
 	// provider's declared api_key_env, then conventional vendor variables.
 	for name, p := range c.Providers {

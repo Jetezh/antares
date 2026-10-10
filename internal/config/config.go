@@ -52,6 +52,8 @@ type Config struct {
 
 	Social Social `yaml:"social" json:"social"`
 
+	Research Research `yaml:"research" json:"research"`
+
 	// inline*FromEnv record that model.base_url / model.api_key were supplied by
 	// ANTARES_BASE_URL / ANTARES_API_KEY rather than read from config.yaml.
 	// ResolveProvider honours an env-supplied credential over a named provider's
@@ -72,6 +74,26 @@ type Social struct {
 	IMAPUsername     string `yaml:"imap_username" json:"imap_username"`
 	BrowserEnabled   bool   `yaml:"browser_enabled" json:"browser_enabled"`
 	AutopilotEnabled bool   `yaml:"autopilot_enabled" json:"autopilot_enabled"`
+}
+
+// Research configures academic & research integrations: Zotero and Google Docs.
+type Research struct {
+	Zotero ZoteroConfig `yaml:"zotero" json:"zotero"`
+	GDocs  GDocsConfig  `yaml:"gdocs" json:"gdocs"`
+}
+
+type ZoteroConfig struct {
+	UserID string `yaml:"user_id" json:"user_id"`
+	APIKey string `yaml:"api_key" json:"api_key"`
+}
+
+type GDocsConfig struct {
+	Method            string `yaml:"method" json:"method"` // "webhook" or "oauth"
+	WebhookURL        string `yaml:"webhook_url" json:"webhook_url"`
+	OAuthClientID     string `yaml:"oauth_client_id" json:"oauth_client_id"`
+	OAuthClientSecret string `yaml:"oauth_client_secret" json:"oauth_client_secret"`
+	OAuthAccessToken  string `yaml:"oauth_access_token" json:"oauth_access_token"`
+	OAuthRefreshToken string `yaml:"oauth_refresh_token" json:"oauth_refresh_token"`
 }
 
 // Model selects which LLM answers by default.

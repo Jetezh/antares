@@ -4,6 +4,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowRight,
   ArrowUp,
+  BookOpen,
   FileText,
   Paperclip,
   Plus,
@@ -36,6 +37,7 @@ import { ModelPicker } from '@/components/chat/ModelPicker'
 import { ReasoningPicker } from '@/components/chat/ReasoningPicker'
 import { ProjectPicker } from '@/components/chat/ProjectPicker'
 import { ProjectSidebar } from '@/components/chat/ProjectSidebar'
+import { ResearchPanel } from '@/components/chat/ResearchPanel'
 import { AnalyzeProjectDialog } from '@/components/chat/AnalyzeProjectDialog'
 import { EditMessageDialog } from '@/components/chat/EditMessageDialog'
 import { SubAgentPanel, type ActiveAgent } from '@/components/chat/SubAgentPanel'
@@ -232,6 +234,7 @@ export default function ChatPage() {
   // by sidebarMobileOpen (starts closed so the chat has the full width).
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false)
+  const [researchSplitOpen, setResearchSplitOpen] = useState(false)
   // Bumped when a turn finishes, so the sidebar re-reads project_info the agent
   // may have just written.
   const [sidebarRefresh, setSidebarRefresh] = useState(0)
@@ -1357,6 +1360,16 @@ export default function ChatPage() {
           <Plus className="size-4" />
           <span className="hidden sm:inline">{t('common.new')}</span>
         </Button>
+        <Button
+          variant={researchSplitOpen ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setResearchSplitOpen((v) => !v)}
+          className="gap-1.5"
+          title="Toggle Split View Zotero & Google Docs"
+        >
+          <BookOpen className="size-4" />
+          <span className="hidden md:inline">Research / Docs</span>
+        </Button>
         {isProject ? (
           <Button
             // On desktop the sidebar is a docked column toggled by sidebarOpen;
@@ -1497,6 +1510,19 @@ export default function ChatPage() {
             </div>
           ) : null}
         </>
+      ) : null}
+
+      {/* Split View: Research & Google Docs Viewer Panel */}
+      {researchSplitOpen ? (
+        <div className="hidden w-[28rem] shrink-0 md:block lg:w-[36rem] xl:w-[42rem]">
+          <ResearchPanel
+            onClose={() => setResearchSplitOpen(false)}
+            onInsertToChat={(text) => {
+              setInput(text)
+              textareaRef.current?.focus()
+            }}
+          />
+        </div>
       ) : null}
     </div>
   )

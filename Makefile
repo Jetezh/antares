@@ -1,5 +1,8 @@
 SHELL := /bin/bash
 
+-include .env
+export
+
 # Resolve each tool from $PATH first, then fall back to its common install
 # location. Override any of them explicitly, e.g. `make GO=/opt/go/bin/go build`.
 # `tool <name> <fallback>` = the binary on PATH if present, else the fallback.
@@ -30,7 +33,7 @@ help: ## Show this help
 
 .PHONY: dev
 dev: ## Run backend (Air hot reload) and frontend (Vite HMR) together
-	@echo "Antares dev: API :8787 · Web :5173"
+	@echo "Antares dev: API :8790 · Web :5174"
 	@trap 'kill 0' EXIT INT TERM; \
 	 $(MAKE) dev-api & \
 	 $(MAKE) dev-web & \
@@ -42,7 +45,7 @@ dev-api: ## Backend with hot reload
 
 .PHONY: dev-web
 dev-web: ## Frontend dev server with HMR
-	@cd web && $(BUN) x vite
+	@cd web && $(BUN) x vite --port 5174
 
 .PHONY: tui
 tui: ## Hot-reload the TUI preview in the foreground (real terminal)

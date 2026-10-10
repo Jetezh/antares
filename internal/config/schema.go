@@ -110,6 +110,13 @@ var hidden = map[string]bool{
 	// express "absent" versus "empty" for display.modules.
 	"display.modules": true,
 	"display.preset":  true,
+
+	"research.zotero.user_id":            true,
+	"research.zotero.api_key":            true,
+	"research.gdocs.method":              true,
+	"research.gdocs.webhook_url":         true,
+	"research.gdocs.oauth_client_id":     true,
+	"research.gdocs.oauth_client_secret": true,
 }
 
 var enums = map[string][]string{
@@ -122,9 +129,16 @@ var enums = map[string][]string{
 	"logging.level":             {"debug", "info", "warn", "error"},
 	"tools.web_search.provider": {"browser", "brave", "tavily", "searxng", "none"},
 	"image_gen.reference_mode":  {"edits", "generations"},
+	"research.gdocs.method":     {"webhook", "oauth"},
 }
 
 var help = map[string]string{
+	"research.zotero.user_id":            "Your personal Zotero User ID (from zotero.org/settings/keys).",
+	"research.zotero.api_key":            "Your Zotero API Key with library and file permissions.",
+	"research.gdocs.method":              "Google Docs connection method: webhook (Google Apps Script) or oauth (Google Cloud).",
+	"research.gdocs.webhook_url":         "Apps Script Webhook URL for Google Docs updates.",
+	"research.gdocs.oauth_client_id":     "Google Cloud OAuth Client ID for Google Docs API.",
+	"research.gdocs.oauth_client_secret": "Google Cloud OAuth Client Secret for Google Docs API.",
 	"model.default":                    "Model id as your provider spells it, e.g. anthropic/claude-sonnet-4.5.",
 	"model.provider":                   "Which entry under providers to call.",
 	"model.auxiliary":                  "Cheaper model used for summarising and other background work.",

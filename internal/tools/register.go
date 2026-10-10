@@ -78,6 +78,9 @@ func init() {
 		// Autonomous web crawler (CyberStrike port). Captures every HTTP
 		// request a target issues as the agent drives a real browser.
 		hackbrowserTool{},
+		// Academic & Research integration tools: Zotero & Google Docs.
+		zoteroCollectionsTool{}, zoteroSearchTool{}, zoteroCiteTool{},
+		gdocsReadTool{}, gdocsUpdateTool{},
 	} {
 		globalRegistry.Register(t)
 	}

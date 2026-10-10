@@ -1,5 +1,13 @@
 import { useMemo, useState } from 'react'
-import { Check, Copy, Image as ImageIcon } from '@phosphor-icons/react'
+import {
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
+  Check,
+  Copy,
+  Image as ImageIcon,
+} from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { copyText } from '@/lib/clipboard'
 import { useI18n } from '@/lib/i18n'
@@ -268,6 +276,62 @@ function RichBlock({ block }: { block: Block }) {
   }
 }
 
+const ARROW_PATTERN =
+  /(?::arrow_right:|:arrowright:|<arrowright\s*\/?>|\barrowright\b|\barroright\b|\barrow_right\b|-->|->|→)|(?::arrow_left:|:arrowleft:|<arrowleft\s*\/?>|\barrowleft\b|\barrorleft\b|\barrow_left\b|<--|<-|←)|(?::arrow_up:|:arrowup:|<arrowup\s*\/?>|\barrowup\b|\barrow_up\b|↑)|(?::arrow_down:|:arrowdown:|<arrowdown\s*\/?>|\barrowdown\b|\barrow_down\b|↓)/gi
+
+function renderPlainTextWithArrows(str: string, baseKey: number): React.ReactNode[] {
+  const result: React.ReactNode[] = []
+  let last = 0
+  let m: RegExpExecArray | null
+  let k = 0
+
+  while ((m = ARROW_PATTERN.exec(str)) !== null) {
+    if (m.index > last) {
+      result.push(str.slice(last, m.index))
+    }
+    const match = m[0].toLowerCase()
+    if (match.includes('left') || match.includes('<-') || match === '←') {
+      result.push(
+        <ArrowLeft
+          key={`arr-l-${baseKey}-${k++}`}
+          className="inline mx-1 size-3.5 align-middle text-muted-foreground"
+          weight="bold"
+        />,
+      )
+    } else if (match.includes('up') || match === '↑') {
+      result.push(
+        <ArrowUp
+          key={`arr-u-${baseKey}-${k++}`}
+          className="inline mx-1 size-3.5 align-middle text-muted-foreground"
+          weight="bold"
+        />,
+      )
+    } else if (match.includes('down') || match === '↓') {
+      result.push(
+        <ArrowDown
+          key={`arr-d-${baseKey}-${k++}`}
+          className="inline mx-1 size-3.5 align-middle text-muted-foreground"
+          weight="bold"
+        />,
+      )
+    } else {
+      result.push(
+        <ArrowRight
+          key={`arr-r-${baseKey}-${k++}`}
+          className="inline mx-1 size-3.5 align-middle text-muted-foreground"
+          weight="bold"
+        />,
+      )
+    }
+    last = m.index + m[0].length
+  }
+
+  if (last < str.length) {
+    result.push(str.slice(last))
+  }
+  return result.length > 0 ? result : [str]
+}
+
 /** Renders inline code, bold, italics, links, and inline images. */
 function Inline({ text }: { text: string }) {
   const nodes: React.ReactNode[] = []
@@ -277,7 +341,7 @@ function Inline({ text }: { text: string }) {
   let key = 0
 
   while ((m = pattern.exec(text)) !== null) {
-    if (m.index > last) nodes.push(text.slice(last, m.index))
+    if (m.index > last) nodes.push(...renderPlainTextWithArrows(text.slice(last, m.index), key++))
     const token = m[0]
     if (token.startsWith('`')) {
       nodes.push(
@@ -331,7 +395,7 @@ function Inline({ text }: { text: string }) {
     }
     last = m.index + token.length
   }
-  if (last < text.length) nodes.push(text.slice(last))
+  if (last < text.length) nodes.push(...renderPlainTextWithArrows(text.slice(last), key++))
   return <>{nodes}</>
 }
 

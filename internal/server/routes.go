@@ -120,6 +120,10 @@ func (s *Server) routes() {
 	m.HandleFunc("GET /api/ui/modules", s.handleGetModules)
 	m.HandleFunc("POST /api/ui/modules", s.handleSetModules)
 
+	// Academic & Research settings (Zotero & Google Docs)
+	m.HandleFunc("GET /api/research/settings", s.handleGetResearchSettings)
+	m.HandleFunc("POST /api/research/settings", s.handleSaveResearchSettings)
+
 	// Models & providers
 	m.HandleFunc("GET /api/model/options", s.handleModelOptions)
 	m.HandleFunc("GET /api/context-window", s.handleContextWindow)

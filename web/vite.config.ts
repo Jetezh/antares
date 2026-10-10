@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 import { gzipSync } from 'node:zlib'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { relative, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 /**
  * Records the static-import closure of every emitted entry chunk with the
@@ -154,17 +155,17 @@ function bundleReport(): Plugin {
 export default defineConfig({
   plugins: [react(), tailwindcss(), bundleReport()],
   resolve: {
-    alias: { '@': new URL('./src', import.meta.url).pathname },
+    alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
   server: {
     host: process.env.HOST ?? '127.0.0.1',
-    port: 5173,
+    port: Number(process.env.VITE_PORT ?? 5174),
     strictPort: true,
     proxy: {
       '/api': {
         // ANTARES_API points the dev dashboard at another server, e.g. an
         // isolated smoke instance, instead of the default local one.
-        target: process.env.ANTARES_API ?? 'http://127.0.0.1:8787',
+        target: process.env.ANTARES_API ?? 'http://127.0.0.1:8790',
         changeOrigin: true,
         ws: true,
       },
