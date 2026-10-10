@@ -132,13 +132,18 @@ You are running as a worker for another agent. Nobody is watching your stream.
 			if targetDoc == "" {
 				targetDoc = cfg.Research.GDocs.WebhookURL
 			}
-			fmt.Fprintf(&b, "- Google Docs: Connected (Target document/bridge: %s). You can read its content using gdocs_read and propose updates using gdocs_update.\n", targetDoc)
+			fmt.Fprintf(&b, "- Google Docs: Connected (Target document/bridge: %s).\n", targetDoc)
+			b.WriteString("  * CRITICAL: ALWAYS use `gdocs_read` to inspect document contents and `gdocs_update` to write text, headings, or citations.\n")
+			b.WriteString("  * NEVER use the `browser` tool for Google Docs. Google Docs renders inside an inaccessible Canvas/WebGL surface where browser DOM manipulation and typing will fail.\n")
 		}
 	}
 
 	if len(active) > 0 {
 		b.WriteString("\n## Tool notes\n\n")
 		b.WriteString("- Paths given to file tools are relative to the workspace; you cannot read outside it.\n")
+		if hasTool(active, "gdocs_update") || hasTool(active, "gdocs_read") {
+			b.WriteString("- Google Docs: When asked to read, write, edit, or update Google Docs, you MUST use gdocs_read and gdocs_update. Do NOT attempt to navigate to Google Docs using the browser tool.\n")
+		}
 		if hasTool(active, "read_file") || hasTool(active, "edit_file") {
 			// Harness guidance for the read → edit loop. The two tools share
 			// one contract — what a read returns is what an edit can find — so

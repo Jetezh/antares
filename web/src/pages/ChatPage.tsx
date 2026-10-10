@@ -1516,6 +1516,7 @@ export default function ChatPage() {
       {researchSplitOpen ? (
         <div className="hidden w-[28rem] shrink-0 md:block lg:w-[36rem] xl:w-[42rem]">
           <ResearchPanel
+            refreshKey={sidebarRefresh}
             onClose={() => setResearchSplitOpen(false)}
             onInsertToChat={(text) => {
               setInput(text)

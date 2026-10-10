@@ -71,7 +71,7 @@ type gdocsReadTool struct{}
 
 func (gdocsReadTool) Name() string { return "gdocs_read" }
 func (gdocsReadTool) Description() string {
-	return "Read the current text content of a Google Doc. Works via an Apps Script Webhook URL or via document_id. Returns the document title and plain text body."
+	return "Read the current text content of a Google Doc. Always use this instead of the browser tool for Google Docs. Works via an Apps Script Webhook URL or via document_id. Returns the document title and plain text body."
 }
 func (gdocsReadTool) RequiresApproval() bool { return false }
 
@@ -152,7 +152,7 @@ type gdocsUpdateTool struct{}
 
 func (gdocsUpdateTool) Name() string { return "gdocs_update" }
 func (gdocsUpdateTool) Description() string {
-	return "Append or update text, headings, citations, and bibliographies in a Google Doc. This tool pauses for user approval (Terima/Tolak) before executing modifications. Returns confirmation of the applied update."
+	return "Append or update text, headings, citations, and bibliographies in a Google Doc. Always use this instead of the browser tool to write or edit Google Docs. This tool automatically triggers an approval prompt (Terima/Tolak) for the user before making changes. Returns confirmation of the applied update."
 }
 
 // RequiresApproval gates this tool so the user sees the diff and can accept or deny it.

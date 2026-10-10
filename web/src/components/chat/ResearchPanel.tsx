@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   ArrowSquareOut,
+  ArrowsClockwise,
   BookOpen,
   Check,
   CheckCircle,
@@ -30,6 +31,7 @@ import { copyText } from '@/lib/clipboard'
 import { useI18n } from '@/lib/i18n'
 
 interface ResearchPanelProps {
+  refreshKey?: number
   onClose: () => void
   onInsertToChat?: (text: string) => void
 }
@@ -94,9 +96,17 @@ function doGet(e) {
   }
 }`
 
-export function ResearchPanel({ onClose, onInsertToChat }: ResearchPanelProps) {
+export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchPanelProps) {
   const { t } = useI18n()
   const [tab, setTab] = useState<'zotero' | 'gdocs'>('gdocs')
+  const [frameKey, setFrameKey] = useState(0)
+
+  // Auto-reload preview iframe when a chat turn completes
+  useEffect(() => {
+    if (refreshKey && refreshKey > 0) {
+      setFrameKey((k) => k + 1)
+    }
+  }, [refreshKey])
 
   // Persistent docUrl across refresh via localStorage
   const [docUrl, setDocUrl] = useState(() => {
@@ -287,22 +297,34 @@ export function ResearchPanel({ onClose, onInsertToChat }: ResearchPanelProps) {
               {t('research.loadDoc')}
             </Button>
             {docUrl ? (
-              <a
-                href={docUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex size-8 items-center justify-center rounded-[var(--radius-md)] border border-border bg-card text-muted-foreground hover:text-foreground"
-                title={t('research.openDoc')}
-              >
-                <ArrowSquareOut className="size-4" />
-              </a>
+              <>
+                <Button
+                  size="icon-sm"
+                  variant="outline"
+                  onClick={() => setFrameKey((k) => k + 1)}
+                  className="h-8 w-8 shrink-0"
+                  title="Reload Preview"
+                >
+                  <ArrowsClockwise className="size-4" />
+                </Button>
+                <a
+                  href={docUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex size-8 items-center justify-center rounded-[var(--radius-md)] border border-border bg-card text-muted-foreground hover:text-foreground"
+                  title={t('research.openDoc')}
+                >
+                  <ArrowSquareOut className="size-4" />
+                </a>
+              </>
             ) : null}
           </div>
 
           <div className="relative flex-1 bg-background/30">
             {docUrl && previewActive ? (
               <iframe
-                src={getEmbedUrl(docUrl)}
+                key={frameKey}
+                src={`${getEmbedUrl(docUrl)}${docUrl.includes('?') ? '&' : '?'}cb=${frameKey}`}
                 title="Google Docs Preview"
                 className="size-full border-0 bg-white"
                 allow="autoplay"
