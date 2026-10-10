@@ -100,6 +100,8 @@ export function ResearchPanel({ onClose, onInsertToChat }: ResearchPanelProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsTab, setSettingsTab] = useState<'zotero' | 'gdocs'>('zotero')
+  const [oauthGuideOpen, setOauthGuideOpen] = useState(false)
+  const [uriCopied, setUriCopied] = useState(false)
 
   // Settings State
   const [zoteroUserId, setZoteroUserId] = useState('')
@@ -488,6 +490,16 @@ export function ResearchPanel({ onClose, onInsertToChat }: ResearchPanelProps) {
                   </div>
                 ) : (
                   <div className="space-y-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setOauthGuideOpen(true)}
+                      className="w-full gap-1.5 border-dashed text-xs text-foreground"
+                    >
+                      <BookOpen className="size-3.5 text-muted-foreground" />
+                      <span>{t('research.openOauthGuide')}</span>
+                    </Button>
                     <div className="space-y-1">
                       <Label className="text-xs">{t('research.oauthClientId')}</Label>
                       <Input
@@ -532,6 +544,68 @@ export function ResearchPanel({ onClose, onInsertToChat }: ResearchPanelProps) {
                 <span>{t('common.save')}</span>
               </Button>
             </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Google OAuth Setup Guide Modal */}
+      <Dialog open={oauthGuideOpen} onOpenChange={setOauthGuideOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BookOpen className="size-5" />
+              <span>{t('research.oauthGuideTitle')}</span>
+            </DialogTitle>
+            <DialogDescription>{t('research.oauthGuideDesc')}</DialogDescription>
+          </DialogHeader>
+
+          <DialogBody className="space-y-3 text-xs">
+            <div className="space-y-1 rounded-[var(--radius-md)] border border-border bg-card p-3">
+              <p className="font-semibold text-foreground">{t('research.oauthStep1Title')}</p>
+              <p className="text-muted-foreground">{t('research.oauthStep1Desc')}</p>
+            </div>
+
+            <div className="space-y-1 rounded-[var(--radius-md)] border border-border bg-card p-3">
+              <p className="font-semibold text-foreground">{t('research.oauthStep2Title')}</p>
+              <p className="text-muted-foreground">{t('research.oauthStep2Desc')}</p>
+            </div>
+
+            <div className="space-y-1 rounded-[var(--radius-md)] border border-border bg-card p-3">
+              <p className="font-semibold text-foreground">{t('research.oauthStep3Title')}</p>
+              <p className="text-muted-foreground">{t('research.oauthStep3Desc')}</p>
+            </div>
+
+            <div className="space-y-2 rounded-[var(--radius-md)] border border-border bg-card p-3">
+              <p className="font-semibold text-foreground">{t('research.oauthStep4Title')}</p>
+              <p className="text-muted-foreground">{t('research.oauthStep4Desc')}</p>
+              <div className="flex items-center justify-between rounded-[var(--radius-sm)] border border-border bg-background p-2 font-mono text-[11px]">
+                <span className="truncate">http://localhost:5174/api/auth/google/callback</span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 gap-1 text-[10px]"
+                  onClick={async () => {
+                    await copyText('http://localhost:5174/api/auth/google/callback\nhttp://127.0.0.1:8790/api/auth/google/callback')
+                    setUriCopied(true)
+                    setTimeout(() => setUriCopied(false), 2000)
+                  }}
+                >
+                  {uriCopied ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
+                  <span>{uriCopied ? t('research.redirectUriCopied') : t('research.copyRedirectUri')}</span>
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-1 rounded-[var(--radius-md)] border border-border bg-card p-3">
+              <p className="font-semibold text-foreground">{t('research.oauthStep5Title')}</p>
+              <p className="text-muted-foreground">{t('research.oauthStep5Desc')}</p>
+            </div>
+          </DialogBody>
+
+          <DialogFooter>
+            <Button size="sm" onClick={() => setOauthGuideOpen(false)}>
+              {t('research.closeGuide')}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -822,6 +822,23 @@ const zh: Dict = {
   'research.oauthClientId': 'Google OAuth 客户端 ID',
   'research.oauthClientSecret': 'Google OAuth 客户端密钥',
   'research.saved': '设置保存成功！',
+
+  'research.oauthGuideTitle': 'Google Cloud OAuth 设置指南',
+  'research.oauthGuideDesc': '创建您免费的 Google OAuth 密钥的详细步骤 (BYOK)。',
+  'research.openOauthGuide': '查看 Google OAuth 密钥获取指南',
+  'research.oauthStep1Title': '1. 创建 Google Cloud 项目',
+  'research.oauthStep1Desc': '访问 Google Cloud 控制台 (console.cloud.google.com) 并新建一个项目（完全免费）。',
+  'research.oauthStep2Title': '2. 启用 Google Docs 和 Drive API',
+  'research.oauthStep2Desc': '在 API 库中搜索并启用“Google Docs API”与“Google Drive API”。',
+  'research.oauthStep3Title': '3. 配置 OAuth 同意屏幕',
+  'research.oauthStep3Desc': '选择“外部”，输入应用名与邮箱。在“测试用户”中添加您自己的 Google 邮箱（免品牌审核）。',
+  'research.oauthStep4Title': '4. 创建 OAuth 客户端 ID',
+  'research.oauthStep4Desc': '进入“凭据 > 创建凭据 > OAuth 客户端 ID”，应用类型选择“Web 应用”，并添加重定向 URI：',
+  'research.copyRedirectUri': '复制重定向 URI',
+  'research.redirectUriCopied': 'URI 已复制',
+  'research.oauthStep5Title': '5. 复制凭据',
+  'research.oauthStep5Desc': '将生成的客户端 ID 和客户端密钥填入上方 Antares 设置中。',
+  'research.closeGuide': '关闭指南',
 }
 
 export default zh

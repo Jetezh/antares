@@ -825,6 +825,23 @@ const ru: Dict = {
   'research.oauthClientId': 'Google OAuth Client ID',
   'research.oauthClientSecret': 'Google OAuth Client Secret',
   'research.saved': 'Настройки успешно сохранены!',
+
+  'research.oauthGuideTitle': 'Руководство по настройке Google Cloud OAuth',
+  'research.oauthGuideDesc': 'Пошаговые инструкции по созданию бесплатных ключей Google OAuth (BYOK).',
+  'research.openOauthGuide': 'Инструкция по созданию ключей Google OAuth',
+  'research.oauthStep1Title': '1. Создайте проект в Google Cloud',
+  'research.oauthStep1Desc': 'Перейдите в консоль Google Cloud (console.cloud.google.com) и создайте новый проект (бесплатно).',
+  'research.oauthStep2Title': '2. Включите Google Docs & Drive API',
+  'research.oauthStep2Desc': 'Найдите в библиотеке и включите API «Google Docs API» и «Google Drive API».',
+  'research.oauthStep3Title': '3. Настройте экран согласия OAuth',
+  'research.oauthStep3Desc': 'Выберите тип «Внешний», укажите название и email. В тестовых пользователях укажите свой Google-аккаунт.',
+  'research.oauthStep4Title': '4. Создайте идентификатор клиента OAuth',
+  'research.oauthStep4Desc': 'Откройте «Учетные данные > Создать > Идентификатор клиента OAuth». Выберите «Веб-приложение» и добавьте URI перенаправления:',
+  'research.copyRedirectUri': 'Скопировать Redirect URI',
+  'research.redirectUriCopied': 'URI скопирован',
+  'research.oauthStep5Title': '5. Скопируйте ключи',
+  'research.oauthStep5Desc': 'Вставьте полученные Client ID и Client Secret в поля настроек Antares выше.',
+  'research.closeGuide': 'Закрыть руководство',
 }
 
 export default ru

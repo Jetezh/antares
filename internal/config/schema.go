@@ -85,6 +85,13 @@ var common = map[string]bool{
 	"display.max_live_reasoning_chars": true,
 	"logging.level":                    true,
 	"server.host":                      true,
+
+	"research.zotero.user_id":            true,
+	"research.zotero.api_key":            true,
+	"research.gdocs.method":              true,
+	"research.gdocs.webhook_url":         true,
+	"research.gdocs.oauth_client_id":     true,
+	"research.gdocs.oauth_client_secret": true,
 }
 
 func tierFor(path string) string {
@@ -111,12 +118,8 @@ var hidden = map[string]bool{
 	"display.modules": true,
 	"display.preset":  true,
 
-	"research.zotero.user_id":            true,
-	"research.zotero.api_key":            true,
-	"research.gdocs.method":              true,
-	"research.gdocs.webhook_url":         true,
-	"research.gdocs.oauth_client_id":     true,
-	"research.gdocs.oauth_client_secret": true,
+	"research.gdocs.oauth_access_token":  true,
+	"research.gdocs.oauth_refresh_token": true,
 }
 
 var enums = map[string][]string{

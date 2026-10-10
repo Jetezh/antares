@@ -1145,6 +1145,23 @@ const id: Dict = {
   'research.oauthClientId': 'Google OAuth Client ID',
   'research.oauthClientSecret': 'Google OAuth Client Secret',
   'research.saved': 'Pengaturan berhasil disimpan!',
+
+  'research.oauthGuideTitle': 'Panduan Pembuatan Google Cloud OAuth',
+  'research.oauthGuideDesc': 'Langkah demi langkah membuat kredensial Google OAuth gratis Anda sendiri (BYOK).',
+  'research.openOauthGuide': 'Lihat Panduan Pembuatan Key Google OAuth',
+  'research.oauthStep1Title': '1. Buat Project di Google Cloud Console',
+  'research.oauthStep1Desc': 'Buka Google Cloud Console (console.cloud.google.com) dan buat project baru (gratis).',
+  'research.oauthStep2Title': '2. Aktifkan API Google Docs & Drive',
+  'research.oauthStep2Desc': 'Cari "Google Docs API" dan "Google Drive API" di library lalu klik Enable untuk keduanya.',
+  'research.oauthStep3Title': '3. Konfigurasi OAuth Consent Screen',
+  'research.oauthStep3Desc': 'Pilih "External", isi nama aplikasi dan email. Pada bagian Test Users, tambahkan email Google Anda sendiri (bebas verifikasi branding).',
+  'research.oauthStep4Title': '4. Buat OAuth Client ID',
+  'research.oauthStep4Desc': 'Buka menu Credentials > Create Credentials > OAuth client ID. Pilih tipe "Web application". Tambahkan Authorized redirect URI di bawah:',
+  'research.copyRedirectUri': 'Salin Redirect URI',
+  'research.redirectUriCopied': 'URI Tersalin',
+  'research.oauthStep5Title': '5. Salin Kredensial',
+  'research.oauthStep5Desc': 'Salin Client ID dan Client Secret yang dihasilkan ke form pengaturan Antares.',
+  'research.closeGuide': 'Tutup Panduan',
 }
 
 export default id

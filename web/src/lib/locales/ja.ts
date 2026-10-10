@@ -824,6 +824,23 @@ const ja: Dict = {
   'research.oauthClientId': 'Google OAuth クライアント ID',
   'research.oauthClientSecret': 'Google OAuth クライアント シークレット',
   'research.saved': '設定が正常に保存されました！',
+
+  'research.oauthGuideTitle': 'Google Cloud OAuth 設定ガイド',
+  'research.oauthGuideDesc': '無料の Google OAuth 認証情報を作成する手順 (BYOK)。',
+  'research.openOauthGuide': 'Google OAuth キーの作成ガイドを見る',
+  'research.oauthStep1Title': '1. Google Cloud プロジェクトを作成',
+  'research.oauthStep1Desc': 'Google Cloud Console (console.cloud.google.com) で新しいプロジェクトを作成します (無料)。',
+  'research.oauthStep2Title': '2. Google Docs と Drive API を有効化',
+  'research.oauthStep2Desc': 'ライブラリで「Google Docs API」と「Google Drive API」を検索し、両方を有効にします。',
+  'research.oauthStep3Title': '3. OAuth 同意画面の設定',
+  'research.oauthStep3Desc': '「外部」を選択し、アプリ名とメールを入力。「テストユーザー」に自分の Google メールを追加します。',
+  'research.oauthStep4Title': '4. OAuth クライアント ID の作成',
+  'research.oauthStep4Desc': '「認証情報 > 認証情報を作成 > OAuth クライアント ID」で「ウェブ アプリケーション」を選択し、リダイレクト URI を追加します:',
+  'research.copyRedirectUri': 'リダイレクト URI をコピー',
+  'research.redirectUriCopied': 'URI をコピーしました',
+  'research.oauthStep5Title': '5. 認証情報をコピー',
+  'research.oauthStep5Desc': '生成されたクライアント ID とクライアント シークレットを Antares の設定フォームに入力します。',
+  'research.closeGuide': 'ガイドを閉じる',
 }
 
 export default ja

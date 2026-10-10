@@ -92,8 +92,8 @@ type GDocsConfig struct {
 	WebhookURL        string `yaml:"webhook_url" json:"webhook_url"`
 	OAuthClientID     string `yaml:"oauth_client_id" json:"oauth_client_id"`
 	OAuthClientSecret string `yaml:"oauth_client_secret" json:"oauth_client_secret"`
-	OAuthAccessToken  string `yaml:"oauth_access_token" json:"oauth_access_token"`
-	OAuthRefreshToken string `yaml:"oauth_refresh_token" json:"oauth_refresh_token"`
+	OAuthAccessToken  string `yaml:"-" json:"-"`
+	OAuthRefreshToken string `yaml:"-" json:"-"`
 }
 
 // Model selects which LLM answers by default.

@@ -1297,6 +1297,23 @@ const en = {
   'research.oauthClientId': 'Google OAuth Client ID',
   'research.oauthClientSecret': 'Google OAuth Client Secret',
   'research.saved': 'Settings saved successfully',
+
+  'research.oauthGuideTitle': 'Google Cloud OAuth Setup Guide',
+  'research.oauthGuideDesc': 'Step-by-step instructions to create your free Google OAuth credentials (BYOK).',
+  'research.openOauthGuide': 'View Google OAuth Setup Guide',
+  'research.oauthStep1Title': '1. Create a Google Cloud Project',
+  'research.oauthStep1Desc': 'Go to Google Cloud Console (console.cloud.google.com) and create a new project (free).',
+  'research.oauthStep2Title': '2. Enable Google Docs & Drive APIs',
+  'research.oauthStep2Desc': 'Search for "Google Docs API" and "Google Drive API" in the library and enable both.',
+  'research.oauthStep3Title': '3. Configure OAuth Consent Screen',
+  'research.oauthStep3Desc': 'Choose "External", enter app name and email. In Test Users, add your own Google email (skips Google app verification).',
+  'research.oauthStep4Title': '4. Create OAuth Client ID',
+  'research.oauthStep4Desc': 'Go to Credentials > Create Credentials > OAuth client ID. Select "Web application". Add the Authorized redirect URIs below:',
+  'research.copyRedirectUri': 'Copy Redirect URI',
+  'research.redirectUriCopied': 'URI Copied',
+  'research.oauthStep5Title': '5. Copy Credentials',
+  'research.oauthStep5Desc': 'Copy the generated Client ID and Client Secret into the Antares settings form.',
+  'research.closeGuide': 'Close Guide',
 } as const
 
 export type MessageKey = keyof typeof en
