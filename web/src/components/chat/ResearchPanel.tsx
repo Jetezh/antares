@@ -17,7 +17,7 @@ import {
   X,
 } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
-import { Input, Label } from '@/components/ui/primitives'
+import { Input, Label, Switch } from '@/components/ui/primitives'
 import {
   Dialog,
   DialogBody,
@@ -253,13 +253,13 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
     return ''
   }
 
-  // Convert standard edit Google Doc URL to /edit?rm=minimal (for live editing) or /preview safely
+  // Convert standard edit Google Doc URL to full web /edit (with File, Edit, Format menus) or /preview
   const getEmbedUrl = (url: string, key: number, mode: 'edit' | 'preview' = 'edit') => {
     if (!url) return ''
     const match = url.trim().match(/\/document\/d\/([a-zA-Z0-9_-]{20,})/)
     if (match && match[1]) {
       if (mode === 'edit') {
-        return `https://docs.google.com/document/d/${match[1]}/edit?rm=minimal&cb=${key}`
+        return `https://docs.google.com/document/d/${match[1]}/edit?cb=${key}`
       }
       return `https://docs.google.com/document/d/${match[1]}/preview?cb=${key}`
     }
@@ -334,18 +334,17 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
             </Button>
             {docUrl ? (
               <>
-                <Button
-                  size="sm"
-                  variant={docViewMode === 'edit' ? 'default' : 'outline'}
-                  onClick={() => setDocViewMode((m) => (m === 'edit' ? 'preview' : 'edit'))}
-                  className="h-8 gap-1 px-2 text-xs"
-                  title={docViewMode === 'edit' ? t('research.modePreview') : t('research.modeEdit')}
-                >
-                  <PencilSimple className="size-3.5" />
-                  <span className="hidden sm:inline text-[11px] font-medium">
+                <div className="flex items-center gap-1.5 rounded-[var(--radius-md)] border border-border bg-card/60 px-2 py-1">
+                  <PencilSimple className="size-3.5 text-muted-foreground" />
+                  <span className="text-[11px] font-medium text-foreground">
                     {docViewMode === 'edit' ? t('research.modeEdit') : t('research.modePreview')}
                   </span>
-                </Button>
+                  <Switch
+                    checked={docViewMode === 'edit'}
+                    onCheckedChange={(checked) => setDocViewMode(checked ? 'edit' : 'preview')}
+                    aria-label={t('research.modeEdit')}
+                  />
+                </div>
                 <Button
                   size="icon-sm"
                   variant="outline"
