@@ -134,6 +134,7 @@ You are running as a worker for another agent. Nobody is watching your stream.
 			}
 			fmt.Fprintf(&b, "- Google Docs: Connected (Target document/bridge: %s).\n", targetDoc)
 			b.WriteString("  * CRITICAL: ALWAYS use `gdocs_read` to inspect document contents and `gdocs_update` to write text, headings, or citations.\n")
+			b.WriteString("  * CRITICAL FOR MULTI-CHAPTER / SHARED DOCS: When writing a specific chapter (e.g. Bab 3) in a document containing multiple chapters, NEVER append blindly to the end of the document! ALWAYS run `gdocs_read` first to identify the exact section heading or placeholder, then pass `find_text` (e.g. 'BAB 3 BILIK') with `position` ('after' to insert right after the heading, or 'replace' with `end_text: 'BAB 4'` to replace the entire chapter section) so your text is placed exactly in its correct position.\n")
 			b.WriteString("  * When inserting citations with `gdocs_update`, pass `zotero_items` (or `item_keys`) so Antares embeds official Zotero Named Ranges (compatible with the Zotero Google Docs extension and automated bibliography generation).\n")
 			b.WriteString("  * NEVER use the `browser` tool for Google Docs. Google Docs renders inside an inaccessible Canvas/WebGL surface where browser DOM manipulation and typing will fail.\n")
 		}

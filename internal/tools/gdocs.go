@@ -401,10 +401,13 @@ func (gdocsUpdateTool) RequiresApproval() bool { return true }
 
 func (gdocsUpdateTool) Schema() map[string]any {
 	return schema(map[string]any{
-		"text":    prop("string", "The text or paragraph content to insert/append to the Google Doc. You can include inline [cite:ITEMKEY] tags to place citations at specific locations within the text."),
-		"heading": propEnum("Optional heading style for this section.", "HEADING_1", "HEADING_2", "HEADING_3", "NORMAL_TEXT"),
-		"font":    propDefault("string", "Font family for inserted text (e.g. 'Times New Roman', 'Arial'). Default: 'Times New Roman'.", "Times New Roman"),
-		"align":   propEnum("Paragraph alignment: JUSTIFIED, START, CENTER, END. Default: JUSTIFIED.", "JUSTIFIED", "START", "CENTER", "END"),
+		"text":         prop("string", "The text or paragraph content to insert/append to the Google Doc. You can include inline [cite:ITEMKEY] tags to place citations at specific locations within the text."),
+		"find_text":    prop("string", "Anchor text or heading to target a specific position in the document (e.g. 'BAB 3 BILIK' or '3.1 Latar Belakang'). If omitted, appends to the end of the document."),
+		"position":     propEnum("Target position relative to find_text: 'after' (insert right after the matching section), 'before' (insert right before), 'replace' (replace the matching text or section). Default: 'after' when find_text is provided.", "after", "before", "replace"),
+		"end_text":     prop("string", "Optional end anchor when position is 'replace'. Replaces the entire section between find_text and end_text (e.g. find_text: 'BAB 3 BILIK', end_text: 'BAB 4')."),
+		"heading":      propEnum("Optional heading style for this section.", "HEADING_1", "HEADING_2", "HEADING_3", "NORMAL_TEXT"),
+		"font":         propDefault("string", "Font family for inserted text (e.g. 'Times New Roman', 'Arial'). Default: 'Times New Roman'.", "Times New Roman"),
+		"align":        propEnum("Paragraph alignment: JUSTIFIED, START, CENTER, END. Default: JUSTIFIED.", "JUSTIFIED", "START", "CENTER", "END"),
 		"citations": map[string]any{
 			"type":        "array",
 			"description": "List of formatted citations used in this text (e.g. from zotero_cite).",
@@ -438,9 +441,142 @@ func (gdocsUpdateTool) Schema() map[string]any {
 	}, "text")
 }
 
+type docContentElement struct {
+	StartIndex int `json:"startIndex"`
+	EndIndex   int `json:"endIndex"`
+	TextRun    *struct {
+		Content string `json:"content"`
+	} `json:"textRun"`
+}
+
+type docContentItem struct {
+	StartIndex int `json:"startIndex"`
+	EndIndex   int `json:"endIndex"`
+	Paragraph  *struct {
+		Elements []docContentElement `json:"elements"`
+	} `json:"paragraph"`
+}
+
+type textMatchRange struct {
+	found          bool
+	matchStart     int
+	matchEnd       int
+	paragraphStart int
+	paragraphEnd   int
+}
+
+func findTextInDoc(contents []docContentItem, query string) textMatchRange {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return textMatchRange{}
+	}
+	queryLower := strings.ToLower(query)
+
+	// Search paragraph-by-paragraph first
+	for _, c := range contents {
+		if c.Paragraph == nil {
+			continue
+		}
+		var paraText strings.Builder
+		var indexMap []int
+
+		for _, elem := range c.Paragraph.Elements {
+			if elem.TextRun == nil {
+				continue
+			}
+			runStr := elem.TextRun.Content
+			runStart := elem.StartIndex
+			offset := 0
+			for _, r := range runStr {
+				rUnits := utf16Len(string(r))
+				paraText.WriteRune(r)
+				for u := 0; u < rUnits; u++ {
+					indexMap = append(indexMap, runStart+offset+u)
+				}
+				offset += rUnits
+			}
+		}
+
+		fullStr := paraText.String()
+		pos := strings.Index(strings.ToLower(fullStr), queryLower)
+		if pos != -1 && pos < len(indexMap) {
+			mStart := indexMap[pos]
+			endPos := pos + utf16Len(query)
+			mEnd := mStart + utf16Len(query)
+			if endPos <= len(indexMap) {
+				mEnd = indexMap[endPos-1] + 1
+			}
+			return textMatchRange{
+				found:          true,
+				matchStart:     mStart,
+				matchEnd:       mEnd,
+				paragraphStart: c.StartIndex,
+				paragraphEnd:   c.EndIndex,
+			}
+		}
+	}
+
+	// Document-wide fallback search across paragraph boundaries
+	var docText strings.Builder
+	var docIndexMap []int
+	type pBoundary struct {
+		start int
+		end   int
+	}
+	var charToPara []pBoundary
+
+	for _, c := range contents {
+		if c.Paragraph == nil {
+			continue
+		}
+		pBound := pBoundary{start: c.StartIndex, end: c.EndIndex}
+		for _, elem := range c.Paragraph.Elements {
+			if elem.TextRun == nil {
+				continue
+			}
+			runStr := elem.TextRun.Content
+			runStart := elem.StartIndex
+			offset := 0
+			for _, r := range runStr {
+				rUnits := utf16Len(string(r))
+				docText.WriteRune(r)
+				for u := 0; u < rUnits; u++ {
+					docIndexMap = append(docIndexMap, runStart+offset+u)
+					charToPara = append(charToPara, pBound)
+				}
+				offset += rUnits
+			}
+		}
+	}
+
+	fullDocStr := docText.String()
+	pos := strings.Index(strings.ToLower(fullDocStr), queryLower)
+	if pos != -1 && pos < len(docIndexMap) {
+		mStart := docIndexMap[pos]
+		endPos := pos + utf16Len(query)
+		mEnd := mStart + utf16Len(query)
+		if endPos <= len(docIndexMap) {
+			mEnd = docIndexMap[endPos-1] + 1
+		}
+		pBound := charToPara[pos]
+		return textMatchRange{
+			found:          true,
+			matchStart:     mStart,
+			matchEnd:       mEnd,
+			paragraphStart: pBound.start,
+			paragraphEnd:   pBound.end,
+		}
+	}
+
+	return textMatchRange{}
+}
+
 func (gdocsUpdateTool) Execute(ctx context.Context, in Input) Result {
 	var args struct {
 		Text            string               `json:"text"`
+		FindText        string               `json:"find_text"`
+		Position        string               `json:"position"`
+		EndText         string               `json:"end_text"`
 		Heading         string               `json:"heading"`
 		Font            string               `json:"font"`
 		Align           string               `json:"align"`
@@ -584,9 +720,7 @@ func (gdocsUpdateTool) Execute(ctx context.Context, in Input) Result {
 
 	var docInfo struct {
 		Body struct {
-			Content []struct {
-				EndIndex int `json:"endIndex"`
-			} `json:"content"`
+			Content []docContentItem `json:"content"`
 		} `json:"body"`
 	}
 	if err := json.NewDecoder(docResp.Body).Decode(&docInfo); err != nil {
@@ -594,10 +728,67 @@ func (gdocsUpdateTool) Execute(ctx context.Context, in Input) Result {
 	}
 
 	insertIndex := 1
-	if len(docInfo.Body.Content) > 0 {
-		lastIdx := docInfo.Body.Content[len(docInfo.Body.Content)-1].EndIndex
-		if lastIdx > 1 {
-			insertIndex = lastIdx - 1
+	type indexRange struct {
+		start int
+		end   int
+	}
+	var deleteRange *indexRange
+
+	findText := strings.TrimSpace(args.FindText)
+	posMode := strings.TrimSpace(strings.ToLower(args.Position))
+	if posMode == "" {
+		if findText != "" {
+			posMode = "after"
+		} else {
+			posMode = "append"
+		}
+	}
+
+	if findText != "" {
+		match := findTextInDoc(docInfo.Body.Content, findText)
+		if !match.found {
+			return Errorf("penanda find_text %q tidak ditemukan di Google Doc. Gunakan gdocs_read untuk memeriksa teks/judul yang persis ada di dokumen.", findText)
+		}
+
+		switch posMode {
+		case "after":
+			insertIndex = match.paragraphEnd
+		case "before":
+			insertIndex = match.paragraphStart
+		case "replace":
+			endText := strings.TrimSpace(args.EndText)
+			if endText != "" {
+				endMatch := findTextInDoc(docInfo.Body.Content, endText)
+				if !endMatch.found {
+					return Errorf("penanda end_text %q tidak ditemukan di Google Doc.", endText)
+				}
+				// Replace between match.paragraphEnd (keeping find_text heading intact)
+				// and endMatch.paragraphStart (keeping end_text heading intact)
+				delStart := match.paragraphEnd
+				delEnd := endMatch.paragraphStart
+				if delStart > delEnd {
+					delStart = match.matchEnd
+					delEnd = endMatch.matchStart
+				}
+				if delStart >= delEnd {
+					return Errorf("posisi end_text (%d) berada sebelum atau sama dengan find_text (%d).", delEnd, delStart)
+				}
+				deleteRange = &indexRange{start: delStart, end: delEnd}
+				insertIndex = delStart
+			} else {
+				// Replace the match itself (e.g. placeholder tag)
+				deleteRange = &indexRange{start: match.matchStart, end: match.matchEnd}
+				insertIndex = match.matchStart
+			}
+		default:
+			insertIndex = match.paragraphEnd
+		}
+	} else {
+		if len(docInfo.Body.Content) > 0 {
+			lastIdx := docInfo.Body.Content[len(docInfo.Body.Content)-1].EndIndex
+			if lastIdx > 1 {
+				insertIndex = lastIdx - 1
+			}
 		}
 	}
 
@@ -610,10 +801,6 @@ func (gdocsUpdateTool) Execute(ctx context.Context, in Input) Result {
 	}
 	var citeRanges []citeRange
 
-	type indexRange struct {
-		start int
-		end   int
-	}
 	var bibRanges []indexRange
 
 	var textBuilder strings.Builder
@@ -740,6 +927,18 @@ func (gdocsUpdateTool) Execute(ctx context.Context, in Input) Result {
 
 	textBuilder.WriteString("\n")
 	contentEnd := cursor - 1
+
+	// 0. Optional Delete Range (for position="replace")
+	if deleteRange != nil && deleteRange.start < deleteRange.end {
+		requests = append(requests, map[string]any{
+			"deleteContentRange": map[string]any{
+				"range": map[string]any{
+					"startIndex": deleteRange.start,
+					"endIndex":   deleteRange.end,
+				},
+			},
+		})
+	}
 
 	// 1. Insert Text
 	requests = append(requests, map[string]any{
@@ -924,6 +1123,12 @@ func (gdocsUpdateTool) Execute(ctx context.Context, in Input) Result {
 
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("Berhasil memperbarui Google Doc (ID: %s via Google Docs API):\n", target))
+	if findText != "" {
+		sb.WriteString(fmt.Sprintf("• Posisi target: %s penanda %q (indeks %d)\n", posMode, findText, insertIndex))
+		if deleteRange != nil {
+			sb.WriteString(fmt.Sprintf("• Rentang teks lama digantikan: indeks %d s/d %d\n", deleteRange.start, deleteRange.end))
+		}
+	}
 	if args.Heading != "" {
 		sb.WriteString(fmt.Sprintf("• Heading: %s\n", args.Heading))
 	}
@@ -943,6 +1148,9 @@ func (gdocsUpdateTool) Execute(ctx context.Context, in Input) Result {
 		Meta: map[string]any{
 			"status":          "success",
 			"target":          target,
+			"find_text":       findText,
+			"position":        posMode,
+			"insert_index":    insertIndex,
 			"citations":       args.Citations,
 			"zotero_items":    zoteroItems,
 			"zotero_embedded": citeCount,
