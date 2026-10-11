@@ -94,7 +94,7 @@ func (s *Shell) onPageMessage(msg string, origin *application.OriginInfo) {
 	s.app.Logger.Debug("page message", "msg", msg, "origin", origin.Origin)
 	from := originOf(origin.Origin)
 	bundled := strings.HasPrefix(from, "wails://")
-	dashboard := from != "" && from == s.mgr.CurrentOrigin()
+	dashboard := from != "" && isSameDashboardOrigin(from, s.mgr.CurrentOrigin())
 	if !bundled && !dashboard {
 		return
 	}
@@ -112,6 +112,23 @@ func (s *Shell) onPageMessage(msg string, origin *application.OriginInfo) {
 	case strings.HasPrefix(msg, "antares:path:") && dashboard:
 		s.mgr.PagePath(origin.Origin, strings.TrimPrefix(msg, "antares:path:"))
 	}
+}
+
+func isSameDashboardOrigin(a, b string) bool {
+	if a == b {
+		return true
+	}
+	ua, errA := url.Parse(a)
+	ub, errB := url.Parse(b)
+	if errA != nil || errB != nil {
+		return false
+	}
+	if ua.Port() != ub.Port() {
+		return false
+	}
+	isLoopbackA := ua.Hostname() == "127.0.0.1" || ua.Hostname() == "localhost"
+	isLoopbackB := ub.Hostname() == "127.0.0.1" || ub.Hostname() == "localhost"
+	return isLoopbackA && isLoopbackB
 }
 
 func originOf(raw string) string {

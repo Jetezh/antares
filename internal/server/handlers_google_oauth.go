@@ -19,10 +19,29 @@ func getGoogleRedirectURI(r *http.Request) string {
 	if q := r.URL.Query().Get("redirect_uri"); q != "" {
 		return q
 	}
+	// Prefer origin header from web frontend
+	if origin := r.Header.Get("Origin"); origin != "" {
+		if u, err := url.Parse(origin); err == nil && u.Host != "" {
+			proto := u.Scheme
+			if proto == "" {
+				proto = "http"
+			}
+			return fmt.Sprintf("%s://%s/api/auth/google/callback", proto, u.Host)
+		}
+	}
+	if referer := r.Header.Get("Referer"); referer != "" {
+		if u, err := url.Parse(referer); err == nil && u.Host != "" {
+			proto := u.Scheme
+			if proto == "" {
+				proto = "http"
+			}
+			return fmt.Sprintf("%s://%s/api/auth/google/callback", proto, u.Host)
+		}
+	}
 	// Prefer host from request header
 	host := r.Host
 	if host == "" {
-		host = "localhost:5174"
+		host = "localhost:8787"
 	}
 	proto := "http"
 	if r.TLS != nil {
@@ -46,10 +65,11 @@ func (s *Server) handleGoogleOAuthURL(w http.ResponseWriter, r *http.Request) {
 	}
 
 	authURL := fmt.Sprintf(
-		"https://accounts.google.com/o/oauth2/v2/auth?client_id=%s&redirect_uri=%s&response_type=code&scope=%s&access_type=offline&prompt=consent",
+		"https://accounts.google.com/o/oauth2/v2/auth?client_id=%s&redirect_uri=%s&response_type=code&scope=%s&access_type=offline&prompt=consent&state=%s",
 		url.QueryEscape(clientID),
 		url.QueryEscape(redirectURI),
 		url.QueryEscape(strings.Join(scopes, " ")),
+		url.QueryEscape(redirectURI),
 	)
 
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -76,6 +96,9 @@ func (s *Server) handleGoogleOAuthCallback(w http.ResponseWriter, r *http.Reques
 	}
 
 	redirectURI := getGoogleRedirectURI(r)
+	if state := r.URL.Query().Get("state"); state != "" {
+		redirectURI = state
+	}
 
 	// Exchange code for tokens
 	data := url.Values{}

@@ -351,9 +351,11 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsTab, setSettingsTab] = useState<'zotero' | 'gdocs'>('zotero')
   const [oauthGuideOpen, setOauthGuideOpen] = useState(false)
-  const [uriCopied, setUriCopied] = useState(false)
+  const [copiedUri, setCopiedUri] = useState<string | null>(null)
   const [googleConnected, setGoogleConnected] = useState(false)
   const [connectingGoogle, setConnectingGoogle] = useState(false)
+  const [authUrl, setAuthUrl] = useState('')
+  const [authUrlCopied, setAuthUrlCopied] = useState(false)
 
   // Listen for Google OAuth completion and load connection status
   useEffect(() => {
@@ -1147,12 +1149,46 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
                         </Button>
                       </div>
                     ) : connectingGoogle ? (
-                      <div className="flex items-center justify-between rounded-[var(--radius-md)] border border-blue-500/20 bg-blue-500/10 p-2.5 text-xs text-blue-400">
-                        <div className="flex items-center gap-2 font-medium">
-                          <Spinner className="size-4 animate-spin shrink-0 text-blue-400" />
-                          <span>{t('research.authorizingGoogle')}</span>
+                      <div className="space-y-2.5 rounded-[var(--radius-md)] border border-blue-500/20 bg-blue-500/10 p-3 text-xs">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 font-medium text-blue-400">
+                            <Spinner className="size-4 animate-spin shrink-0 text-blue-400" />
+                            <span>{t('research.authorizingGoogle')}</span>
+                          </div>
+                          <span className="text-[11px] text-muted-foreground">{t('research.checkPopupWindow')}</span>
                         </div>
-                        <span className="text-[11px] text-muted-foreground">{t('research.checkPopupWindow')}</span>
+                        {authUrl ? (
+                          <div className="space-y-2 border-t border-blue-500/20 pt-2">
+                            <p className="text-[11px] text-muted-foreground leading-relaxed">
+                              Jika jendela login tidak terbuka otomatis di aplikasi desktop, buka melalui browser sistem:
+                            </p>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <a
+                                href={authUrl}
+                                target="_blank"
+                                rel="noreferrer noopener"
+                                className="inline-flex h-7 items-center gap-1.5 rounded-[var(--radius-sm)] bg-primary px-3 text-[11px] font-medium text-primary-foreground hover:bg-primary/90"
+                              >
+                                <span>Buka di Browser Eksternal</span>
+                                <ArrowSquareOut className="size-3" />
+                              </a>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-7 gap-1 text-[11px]"
+                                onClick={async () => {
+                                  await copyText(authUrl)
+                                  setAuthUrlCopied(true)
+                                  setTimeout(() => setAuthUrlCopied(false), 2000)
+                                }}
+                              >
+                                {authUrlCopied ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
+                                <span>{authUrlCopied ? t('research.copied') : 'Salin Link Login'}</span>
+                              </Button>
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
                     ) : (
                       <Button
@@ -1164,18 +1200,23 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
                           setConnectingGoogle(true)
                           try {
                             await handleSaveSettings(false)
-                            const res = await get<{ url: string }>('/auth/google/url')
+                            const callbackUri = `${window.location.origin}/api/auth/google/callback`
+                            const res = await get<{ url: string }>(`/auth/google/url?redirect_uri=${encodeURIComponent(callbackUri)}`)
                             if (res.url) {
-                              const popup = window.open(res.url, 'google_oauth', 'width=600,height=700')
-                              const timer = setInterval(() => {
-                                if (!popup || popup.closed) {
-                                  clearInterval(timer)
-                                  setConnectingGoogle(false)
-                                  get<{ connected: boolean }>('/auth/google/status')
-                                    .then((r) => setGoogleConnected(!!r.connected))
-                                    .catch(() => {})
-                                }
-                              }, 1000)
+                              setAuthUrl(res.url)
+                              try {
+                                window.open(res.url, 'google_oauth', 'width=600,height=700')
+                              } catch {}
+                              const timer = setInterval(async () => {
+                                try {
+                                  const statusRes = await get<{ connected: boolean }>('/auth/google/status')
+                                  if (statusRes.connected) {
+                                    clearInterval(timer)
+                                    setGoogleConnected(true)
+                                    setConnectingGoogle(false)
+                                  }
+                                } catch {}
+                              }, 1500)
                             } else {
                               setConnectingGoogle(false)
                             }
@@ -1246,21 +1287,36 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
             <div className="space-y-2 rounded-[var(--radius-md)] border border-border bg-card p-3">
               <p className="font-semibold text-foreground">{t('research.oauthStep4Title')}</p>
               <p className="text-muted-foreground leading-relaxed">{t('research.oauthStep4Desc')}</p>
-              <div className="flex items-center justify-between rounded-[var(--radius-sm)] border border-border bg-background p-2 font-mono text-[11px]">
-                <span className="truncate">http://localhost:5174/api/auth/google/callback</span>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-6 gap-1 text-[10px]"
-                  onClick={async () => {
-                    await copyText('http://localhost:5174/api/auth/google/callback')
-                    setUriCopied(true)
-                    setTimeout(() => setUriCopied(false), 2000)
-                  }}
-                >
-                  {uriCopied ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
-                  <span>{uriCopied ? t('research.redirectUriCopied') : t('research.copyRedirectUri')}</span>
-                </Button>
+              <div className="space-y-1.5 pt-1">
+                {[
+                  'http://localhost:8787/api/auth/google/callback',
+                  'http://127.0.0.1:8787/api/auth/google/callback',
+                  'http://localhost:5174/api/auth/google/callback',
+                ].map((uri) => (
+                  <div
+                    key={uri}
+                    className="flex items-center justify-between rounded-[var(--radius-sm)] border border-border bg-background p-1.5 font-mono text-[11px]"
+                  >
+                    <span className="truncate">{uri}</span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 gap-1 text-[10px]"
+                      onClick={async () => {
+                        await copyText(uri)
+                        setCopiedUri(uri)
+                        setTimeout(() => setCopiedUri(null), 2000)
+                      }}
+                    >
+                      {copiedUri === uri ? (
+                        <Check className="size-3 text-emerald-500" />
+                      ) : (
+                        <Copy className="size-3" />
+                      )}
+                      <span>{copiedUri === uri ? t('research.copied') : 'Salin'}</span>
+                    </Button>
+                  </div>
+                ))}
               </div>
             </div>
 
