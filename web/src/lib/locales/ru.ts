@@ -846,10 +846,31 @@ const ru: Dict = {
   'research.gdocsConnectedOauth': 'Подключено к Google Docs (OAuth)',
   'research.connectGoogle': 'Подключить Google-аккаунт (Войти)',
   'research.disconnectGoogle': 'Отключить',
+  'research.authorizingGoogle': 'Ожидание авторизации Google...',
+  'research.checkPopupWindow': 'Завершите вход во всплывающем окне',
+  'research.agentConnectedBadge': 'Агент: Подключен (OAuth)',
+  'research.agentNotConnectedBadge': 'Агент: Не подключен',
+  'research.iframeLoginNotice': 'Google Docs внутри iframe использует сеанс браузера. Если запрашивается вход, откройте доступ по ссылке («Все, у кого есть ссылка») или откройте документ в новой вкладке. Агент работает через OAuth независимо.',
 
   'research.modeEdit': 'Режим редактирования',
   'research.modePreview': 'Режим просмотра',
   'research.dragResize': 'Потяните, чтобы изменить ширину',
+
+  'research.latex': 'LaTeX',
+  'research.tabLatex': 'LaTeX & BibTeX',
+  'research.latexDesc': 'Академический редактор LaTeX и BibTeX для статей журналов',
+  'research.latexCopyOverleaf': 'Копировать код',
+  'research.latexCopied': 'Код скопирован!',
+  'research.latexInsertChat': 'Попросить агента отредактировать',
+  'research.latexMainTex': 'paper.tex',
+  'research.latexRefBib': 'references.bib',
+  'research.latexInsertFigure': '+ Рисунок (подпись снизу)',
+  'research.latexInsertTable': '+ Таблица (подпись сверху)',
+  'research.latexInsertEquation': '+ Формула (Equation)',
+  'research.latexInsertCitation': '+ Цитата (\\cite)',
+  'research.latexTemplateIeee': 'Журнал IEEE',
+  'research.latexTemplateStandard': 'Стандартная статья',
+  'research.latexTemplateSpringer': 'Формат Springer',
 }
 
 export default ru

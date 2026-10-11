@@ -843,10 +843,31 @@ const zh: Dict = {
   'research.gdocsConnectedOauth': '已关联 Google Docs (OAuth)',
   'research.connectGoogle': '关联 Google 账户 (登录)',
   'research.disconnectGoogle': '解除关联',
+  'research.authorizingGoogle': '等待 Google 授权中...',
+  'research.checkPopupWindow': '请在弹出窗口中完成登录',
+  'research.agentConnectedBadge': '智能体: 已连接 (OAuth)',
+  'research.agentNotConnectedBadge': '智能体: 未连接',
+  'research.iframeLoginNotice': 'iframe 中的 Google Docs 使用浏览器会话。如提示登录，请将文档共享设置为“任何知道链接的人”或直接在标签页打开。智能体通过 OAuth 独立交互。',
 
   'research.modeEdit': '编辑模式',
   'research.modePreview': '预览模式',
   'research.dragResize': '拖动调整分屏宽度',
+
+  'research.latex': 'LaTeX',
+  'research.tabLatex': 'LaTeX & BibTeX',
+  'research.latexDesc': '用于学术期刊论文的 LaTeX 与 BibTeX 编辑器',
+  'research.latexCopyOverleaf': '复制代码',
+  'research.latexCopied': '代码已复制！',
+  'research.latexInsertChat': '发送给智能体编辑',
+  'research.latexMainTex': 'paper.tex',
+  'research.latexRefBib': 'references.bib',
+  'research.latexInsertFigure': '+ 插图 (下方图题)',
+  'research.latexInsertTable': '+ 表格 (上方表题)',
+  'research.latexInsertEquation': '+ 公式',
+  'research.latexInsertCitation': '+ 引用 (\\cite)',
+  'research.latexTemplateIeee': 'IEEE 期刊',
+  'research.latexTemplateStandard': '标准文章',
+  'research.latexTemplateSpringer': 'Springer 格式',
 }
 
 export default zh

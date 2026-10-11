@@ -1166,10 +1166,31 @@ const id: Dict = {
   'research.gdocsConnectedOauth': 'Terhubung dengan Google Docs (OAuth)',
   'research.connectGoogle': 'Hubungkan Akun Google (Login)',
   'research.disconnectGoogle': 'Putuskan',
+  'research.authorizingGoogle': 'Menunggu otorisasi Google...',
+  'research.checkPopupWindow': 'Selesaikan login di jendela popup',
+  'research.agentConnectedBadge': 'Agen: Terhubung (OAuth)',
+  'research.agentNotConnectedBadge': 'Agen: Belum Terhubung',
+  'research.iframeLoginNotice': 'Google Docs di dalam iframe menggunakan sesi browser Anda. Jika diminta login, atur akses dokumen ke "Siapa saja yang memiliki link" atau buka di tab baru. Agen berinteraksi via OAuth secara independen.',
 
   'research.modeEdit': 'Mode Edit',
   'research.modePreview': 'Mode Pratinjau',
   'research.dragResize': 'Geser untuk mengubah lebar panel',
+
+  'research.latex': 'LaTeX',
+  'research.tabLatex': 'LaTeX & BibTeX',
+  'research.latexDesc': 'Editor akademik LaTeX & BibTeX untuk manuskrip jurnal',
+  'research.latexCopyOverleaf': 'Salin Kode',
+  'research.latexCopied': 'Kode Tersalin!',
+  'research.latexInsertChat': 'Minta Agen Edit',
+  'research.latexMainTex': 'paper.tex',
+  'research.latexRefBib': 'references.bib',
+  'research.latexInsertFigure': '+ Gambar (Caption Bawah)',
+  'research.latexInsertTable': '+ Tabel (Caption Atas)',
+  'research.latexInsertEquation': '+ Rumus (Equation)',
+  'research.latexInsertCitation': '+ Sitasi (\\cite)',
+  'research.latexTemplateIeee': 'Jurnal IEEE',
+  'research.latexTemplateStandard': 'Artikel Standar',
+  'research.latexTemplateSpringer': 'Format Springer',
 }
 
 export default id

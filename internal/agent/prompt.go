@@ -134,8 +134,21 @@ You are running as a worker for another agent. Nobody is watching your stream.
 			}
 			fmt.Fprintf(&b, "- Google Docs: Connected (Target document/bridge: %s).\n", targetDoc)
 			b.WriteString("  * CRITICAL: ALWAYS use `gdocs_read` to inspect document contents and `gdocs_update` to write text, headings, or citations.\n")
+			b.WriteString("  * When inserting citations with `gdocs_update`, pass `zotero_items` (or `item_keys`) so Antares embeds official Zotero Named Ranges (compatible with the Zotero Google Docs extension and automated bibliography generation).\n")
 			b.WriteString("  * NEVER use the `browser` tool for Google Docs. Google Docs renders inside an inaccessible Canvas/WebGL surface where browser DOM manipulation and typing will fail.\n")
 		}
+		b.WriteString("\n## Academic Writing & Journal Standards (LaTeX & Google Docs)\n\n")
+		b.WriteString("- Standard Typography: Use formal academic style (Times New Roman, 12pt, Justified alignment).\n")
+		b.WriteString("- Figures & Flowcharts:\n")
+		b.WriteString("  * Always place an explicit figure placeholder indicating what illustration or diagram to insert and where.\n")
+		b.WriteString("  * Always place the caption/legend BELOW the figure (e.g. `Gambar 2.1: Flowchart Metodologi Penelitian` or `Figure 2.1: System Architecture`).\n")
+		b.WriteString("  * In LaTeX, use standard figure environments: `\\begin{figure}[htbp] \\centering ... \\caption{...} \\label{fig:...} \\end{figure}`.\n")
+		b.WriteString("- Tables: Always place the caption/title ABOVE the table (e.g. `Tabel 2.1: Hasil Pengujian Akurasi` or `Table 2.1: Accuracy Metrics`).\n")
+		b.WriteString("- Mathematical Formulas & Equations:\n")
+		b.WriteString("  * In LaTeX, use native numbered equations (`\\begin{equation} ... \\end{equation}`) or inline math (`$...$`).\n")
+		b.WriteString("- Citations & Bibliography:\n")
+		b.WriteString("  * For LaTeX documents: Use `\\cite{key}` for in-text citations and maintain `references.bib` using BibTeX format (fetch BibTeX directly from Zotero using `zotero_cite` with `format=\"bibtex\"`).\n")
+		b.WriteString("  * For Google Docs: Use `gdocs_update` with `zotero_items` to insert official Zotero Named Ranges and formatted bibliography entries with hanging indent.\n")
 	}
 
 	if len(active) > 0 {

@@ -1318,10 +1318,31 @@ const en = {
   'research.gdocsConnectedOauth': 'Connected with Google Docs (OAuth)',
   'research.connectGoogle': 'Connect Google Account (Sign In)',
   'research.disconnectGoogle': 'Disconnect',
+  'research.authorizingGoogle': 'Waiting for Google authorization...',
+  'research.checkPopupWindow': 'Complete sign-in in popup window',
+  'research.agentConnectedBadge': 'Agent: Connected (OAuth)',
+  'research.agentNotConnectedBadge': 'Agent: Not Connected',
+  'research.iframeLoginNotice': 'Google Docs in iframe runs in your browser session. If prompted to sign in, share link as "Anyone with the link" or open directly. The agent interacts via OAuth independently.',
 
   'research.modeEdit': 'Edit Mode',
   'research.modePreview': 'Preview Mode',
   'research.dragResize': 'Drag to resize split view',
+
+  'research.latex': 'LaTeX',
+  'research.tabLatex': 'LaTeX & BibTeX',
+  'research.latexDesc': 'Academic LaTeX & BibTeX for journal manuscripts',
+  'research.latexCopyOverleaf': 'Copy Code',
+  'research.latexCopied': 'Code Copied!',
+  'research.latexInsertChat': 'Ask Agent to Edit',
+  'research.latexMainTex': 'paper.tex',
+  'research.latexRefBib': 'references.bib',
+  'research.latexInsertFigure': '+ Figure (Caption Below)',
+  'research.latexInsertTable': '+ Table (Caption Above)',
+  'research.latexInsertEquation': '+ Equation',
+  'research.latexInsertCitation': '+ Citation (\\cite)',
+  'research.latexTemplateIeee': 'IEEE Journal',
+  'research.latexTemplateStandard': 'Standard Article',
+  'research.latexTemplateSpringer': 'Springer Nature',
 } as const
 
 export type MessageKey = keyof typeof en

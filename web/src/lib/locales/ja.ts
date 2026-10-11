@@ -845,10 +845,31 @@ const ja: Dict = {
   'research.gdocsConnectedOauth': 'Google Docs と接続済み (OAuth)',
   'research.connectGoogle': 'Google アカウントを連携 (ログイン)',
   'research.disconnectGoogle': '連携解除',
+  'research.authorizingGoogle': 'Google 認証を待機中...',
+  'research.checkPopupWindow': 'ポップアップウィンドウでログインを完了してください',
+  'research.agentConnectedBadge': 'エージェント: 接続済み (OAuth)',
+  'research.agentNotConnectedBadge': 'エージェント: 未接続',
+  'research.iframeLoginNotice': 'iframe 内の Google Docs はブラウザセッションを使用します。ログインを求められた場合は、リンク共有を「リンクを知っている全員」に設定するか新しいタブで開いてください。エージェントは独立して OAuth 経由で対話します。',
 
   'research.modeEdit': '編集モード',
   'research.modePreview': 'プレビューモード',
   'research.dragResize': 'ドラッグして幅を調整',
+
+  'research.latex': 'LaTeX',
+  'research.tabLatex': 'LaTeX & BibTeX',
+  'research.latexDesc': '学術論文・ジャーナル用 LaTeX & BibTeX エディタ',
+  'research.latexCopyOverleaf': 'コードをコピー',
+  'research.latexCopied': 'コピーしました！',
+  'research.latexInsertChat': 'エージェントに編集を依頼',
+  'research.latexMainTex': 'paper.tex',
+  'research.latexRefBib': 'references.bib',
+  'research.latexInsertFigure': '+ 図 (キャプション下)',
+  'research.latexInsertTable': '+ 表 (キャプション上)',
+  'research.latexInsertEquation': '+ 数式',
+  'research.latexInsertCitation': '+ 引用 (\\cite)',
+  'research.latexTemplateIeee': 'IEEE ジャーナル',
+  'research.latexTemplateStandard': '標準論文',
+  'research.latexTemplateSpringer': 'Springer 形式',
 }
 
 export default ja

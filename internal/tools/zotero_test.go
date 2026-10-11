@@ -56,3 +56,18 @@ func TestZoteroCollectionsTool(t *testing.T) {
 		t.Errorf("expected RequiresApproval to be false")
 	}
 }
+
+func TestZoteroCiteToolSchema(t *testing.T) {
+	tool := zoteroCiteTool{}
+	if tool.Name() != "zotero_cite" {
+		t.Errorf("expected zotero_cite, got %s", tool.Name())
+	}
+	schema := tool.Schema()
+	props, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected properties in schema")
+	}
+	if _, ok := props["format"]; !ok {
+		t.Errorf("expected format property in schema")
+	}
+}

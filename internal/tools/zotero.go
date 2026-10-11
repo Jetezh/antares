@@ -359,6 +359,7 @@ func (zoteroCiteTool) Schema() map[string]any {
 			"items":       map[string]any{"type": "string"},
 		},
 		"style":   propDefault("string", "Citation style: apa, ieee, harvard-cite-them-right, mla, nature, vancouver. Default: apa.", "apa"),
+		"format":  propEnum("Output format: standard (in-text citation & bibliography) or bibtex (raw BibTeX entries for LaTeX references.bib). Default: standard.", "standard", "bibtex"),
 		"user_id": prop("string", "Zotero User ID (optional)."),
 		"api_key": prop("string", "Zotero API Key (optional)."),
 	}, "item_keys")
@@ -368,6 +369,7 @@ func (zoteroCiteTool) Execute(ctx context.Context, in Input) Result {
 	var args struct {
 		ItemKeys []string `json:"item_keys"`
 		Style    string   `json:"style"`
+		Format   string   `json:"format"`
 		UserID   string   `json:"user_id"`
 		APIKey   string   `json:"api_key"`
 	}
@@ -387,13 +389,52 @@ func (zoteroCiteTool) Execute(ctx context.Context, in Input) Result {
 	if style == "" {
 		style = "apa"
 	}
+	format := strings.TrimSpace(strings.ToLower(args.Format))
 
 	userID, apiKey, err := resolveZoteroCreds(in, args.UserID, args.APIKey)
 	if err != nil {
 		return Errorf("%v", err)
 	}
 
+	client := &http.Client{Timeout: 15 * time.Second}
 	keysParam := strings.Join(args.ItemKeys, ",")
+
+	if format == "bibtex" || style == "bibtex" {
+		reqURL := fmt.Sprintf("%s/users/%s/items?itemKey=%s&format=bibtex",
+			zoteroAPIBase, url.PathEscape(userID), url.QueryEscape(keysParam))
+		req, err := http.NewRequestWithContext(ctx, "GET", reqURL, nil)
+		if err != nil {
+			return Errorf("create bibtex request: %v", err)
+		}
+		req.Header.Set("Zotero-API-Key", apiKey)
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return Errorf("fetch bibtex: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			b, _ := io.ReadAll(resp.Body)
+			return Errorf("Zotero API error (%d): %s", resp.StatusCode, string(b))
+		}
+
+		b, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return Errorf("read bibtex response: %v", err)
+		}
+
+		bibtexContent := strings.TrimSpace(string(b))
+		return Result{
+			Content: fmt.Sprintf("BibTeX Entries (for LaTeX references.bib):\n\n```bibtex\n%s\n```", bibtexContent),
+			Meta: map[string]any{
+				"format":    "bibtex",
+				"bibtex":    bibtexContent,
+				"item_keys": args.ItemKeys,
+			},
+		}
+	}
+
 	reqURL := fmt.Sprintf("%s/users/%s/items?itemKey=%s&include=citation,bib,data&style=%s",
 		zoteroAPIBase, url.PathEscape(userID), url.QueryEscape(keysParam), url.QueryEscape(style))
 
@@ -403,7 +444,6 @@ func (zoteroCiteTool) Execute(ctx context.Context, in Input) Result {
 	}
 	req.Header.Set("Zotero-API-Key", apiKey)
 
-	client := &http.Client{Timeout: 15 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		return Errorf("fetch citation: %v", err)
@@ -434,6 +474,7 @@ func (zoteroCiteTool) Execute(ctx context.Context, in Input) Result {
 
 	var inTextCitations []string
 	var bibliographies []string
+	var zoteroItemsMeta []map[string]string
 
 	for _, item := range raw {
 		cleanCite := stripHTML(item.Citation)
@@ -444,6 +485,12 @@ func (zoteroCiteTool) Execute(ctx context.Context, in Input) Result {
 		if cleanBib != "" {
 			bibliographies = append(bibliographies, cleanBib)
 		}
+		zoteroItemsMeta = append(zoteroItemsMeta, map[string]string{
+			"key":      item.Key,
+			"citation": cleanCite,
+			"title":    item.Data.Title,
+			"bib":      cleanBib,
+		})
 	}
 
 	var sb strings.Builder
@@ -455,6 +502,7 @@ func (zoteroCiteTool) Execute(ctx context.Context, in Input) Result {
 	for i, bib := range bibliographies {
 		sb.WriteString(fmt.Sprintf("[%d] %s\n", i+1, bib))
 	}
+	sb.WriteString("\nTip: Pass `zotero_items` or `item_keys` to `gdocs_update` to embed official Zotero Google Docs fields (Named Ranges) automatically recognized by the Zotero extension!\n")
 
 	return Result{
 		Content: strings.TrimSpace(sb.String()),
@@ -462,6 +510,7 @@ func (zoteroCiteTool) Execute(ctx context.Context, in Input) Result {
 			"in_text":        strings.Join(inTextCitations, "; "),
 			"bibliographies": bibliographies,
 			"style":          style,
+			"zotero_items":   zoteroItemsMeta,
 		},
 	}
 }

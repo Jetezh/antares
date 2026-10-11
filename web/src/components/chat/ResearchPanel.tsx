@@ -6,6 +6,7 @@ import {
   Check,
   CheckCircle,
   Copy,
+  FileCode,
   FileText,
   FloppyDisk,
   Folders,
@@ -14,6 +15,8 @@ import {
   Key,
   MagnifyingGlass,
   PencilSimple,
+  Spinner,
+  WarningCircle,
   X,
 } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
@@ -30,6 +33,8 @@ import {
 import { get, post } from '@/lib/api'
 import { copyText } from '@/lib/clipboard'
 import { useI18n } from '@/lib/i18n'
+import { cn } from '@/lib/utils'
+import { LatexPreview } from '@/components/chat/LatexPreview'
 
 interface ResearchPanelProps {
   refreshKey?: number
@@ -97,11 +102,227 @@ function doGet(e) {
   }
 }`
 
+const IEEE_TEMPLATE = `\\documentclass[journal]{IEEEtran}
+\\usepackage{amsmath,amssymb,amsfonts}
+\\usepackage{algorithmic}
+\\usepackage{graphicx}
+\\usepackage{textcomp}
+\\usepackage{cite}
+
+\\begin{document}
+
+\\title{Judul Artikel Ilmiah: Analisis Komparatif dan Evaluasi Sistem}
+\\author{Penulis Pertama, Penulis Kedua}
+
+\\maketitle
+
+\\begin{abstract}
+Ringkasan singkat memuat latar belakang, perumusan masalah, metodologi, dan hasil eksperimen.
+\\end{abstract}
+
+\\begin{IEEEkeywords}
+Kecerdasan Buatan, Desain Sistem, Evaluasi Model.
+\\end{IEEEkeywords}
+
+\\section{Pendahuluan}
+Perkembangan teknologi komputasi berkembang pesat dalam beberapa dekade terakhir \\cite{setiawan2024}.
+
+\\section{Metodologi Penelitian}
+Uraian sistematis metode yang diusulkan.
+
+% --- PLACEHOLDER GAMBAR & FLOWCHART (CAPTION DI BAWAH) ---
+\\begin{figure}[htbp]
+  \\centering
+  % \\includegraphics[width=0.85\\linewidth]{figures/flowchart.png}
+  \\fbox{\\rule{0pt}{2in} \\rule{0.85\\linewidth}{0pt}} % Kotak placeholder gambar
+  \\caption{Gambar 2.1: Flowchart Metodologi Penelitian dan Arsitektur Sistem}
+  \\label{fig:flowchart}
+\\end{figure}
+
+% --- PERSAMAAN MATEMATIKA ---
+Persamaan matematis sistem dirumuskan sebagai berikut:
+\\begin{equation}
+  f(x) = \\sum_{i=1}^{n} w_i \\cdot x_i + b
+  \\label{eq:model}
+\\end{equation}
+
+\\section{Hasil dan Pembahasan}
+Hasil pengujian performa sistem disajikan pada Tabel \\ref{tab:hasil}.
+
+% --- TABEL FORMAL AKADEMIK (CAPTION DI ATAS) ---
+\\begin{table}[htbp]
+  \\caption{Tabel 2.1: Hasil Evaluasi Akurasi dan F1-Score Model}
+  \\label{tab:hasil}
+  \\centering
+  \\begin{tabular}{|l|c|c|c|}
+    \\hline
+    \\textbf{Metode} & \\textbf{Presisi (\\%)} & \\textbf{Recall (\\%)} & \\textbf{F1-Score} \\\\
+    \\hline
+    Baseline & 84.5 & 82.1 & 0.832 \\\\
+    Usulan Sistem & \\textbf{95.2} & \\textbf{94.8} & \\textbf{0.950} \\\\
+    \\hline
+  \\end{tabular}
+\\end{table}
+
+\\section{Kesimpulan}
+Penelitian ini membuktikan peningkatan performa yang signifikan.
+
+\\bibliographystyle{IEEEtran}
+\\bibliography{references}
+
+\\end{document}
+`
+
+const STANDARD_TEMPLATE = `\\documentclass[12pt,a4paper]{article}
+\\usepackage[margin=1in]{geometry}
+\\usepackage{mathptmx} % Times New Roman font
+\\usepackage{amsmath,amssymb}
+\\usepackage{graphicx}
+\\usepackage{booktabs}
+\\usepackage[numbers]{natbib}
+\\usepackage{setspace}
+\\onehalfspacing
+
+\\title{\\textbf{Judul Naskah Publikasi Ilmiah}}
+\\author{Nama Penulis\\\\\\small Afiliasi Penulis, Email}
+\\date{\\today}
+
+\\begin{document}
+\\maketitle
+
+\\begin{abstract}
+Abstrak naskah memuat tujuan, metode, hasil, dan simpulan penelitian.
+\\end{abstract}
+
+\\section{Pendahuluan}
+Pendahuluan naskah dengan sitasi pustaka \\cite{setiawan2024}.
+
+% --- PLACEHOLDER GAMBAR (CAPTION DI BAWAH) ---
+\\begin{figure}[htbp]
+  \\centering
+  \\fbox{\\rule{0pt}{1.8in} \\rule{0.8\\linewidth}{0pt}}
+  \\caption{Gambar 1.1: Diagram Alir Penelitian}
+  \\label{fig:diagram}
+\\end{figure}
+
+\\section{Metodologi}
+Rumus persamaan matematis:
+\\begin{equation}
+  E = mc^2
+\\end{equation}
+
+% --- TABEL (CAPTION DI ATAS) ---
+\\begin{table}[htbp]
+  \\caption{Tabel 1.1: Parameter Pengujian}
+  \\label{tab:params}
+  \\centering
+  \\begin{tabular}{llr}
+    \\toprule
+    Parameter & Nilai & Keterangan \\\\
+    \\midrule
+    Learning Rate & 0.001 & Adam Optimizer \\\\
+    Batch Size & 32 & GPU V100 \\\\
+    \\bottomrule
+  \\end{tabular}
+\\end{table}
+
+\\bibliographystyle{plainnat}
+\\bibliography{references}
+
+\\end{document}
+`
+
+const BIBTEX_TEMPLATE = `@article{setiawan2024,
+  author = {Setiawan, Vega and Budiman, A.},
+  title = {Arsitektur Agen Cerdas untuk Penulisan Ilmiah Terpadu},
+  journal = {Jurnal Riset Ilmu Komputer dan Informatika},
+  volume = {12},
+  number = {2},
+  pages = {145--158},
+  year = {2024},
+  publisher = {Academic Press}
+}
+
+@book{goodfellow2016deep,
+  title = {Deep Learning},
+  author = {Goodfellow, Ian and Bengio, Yoshua and Courville, Aaron},
+  year = {2016},
+  publisher = {MIT Press}
+}
+`
+
 export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchPanelProps) {
   const { t } = useI18n()
-  const [tab, setTab] = useState<'zotero' | 'gdocs'>('gdocs')
+  const [tab, setTab] = useState<'gdocs' | 'latex' | 'zotero'>('gdocs')
   const [docViewMode, setDocViewMode] = useState<'edit' | 'preview'>('edit')
   const [frameKey, setFrameKey] = useState(0)
+
+  // LaTeX state
+  const [latexFile, setLatexFile] = useState<'main' | 'bib'>('main')
+  const [latexViewMode, setLatexViewMode] = useState<'editor' | 'preview'>('editor')
+  const [latexTemplate, setLatexTemplate] = useState<'ieee' | 'standard'>('ieee')
+  const [latexMainCode, setLatexMainCode] = useState(() => {
+    try {
+      return localStorage.getItem('antares:latex-main') || IEEE_TEMPLATE
+    } catch {
+      return IEEE_TEMPLATE
+    }
+  })
+  const [latexBibCode, setLatexBibCode] = useState(() => {
+    try {
+      return localStorage.getItem('antares:latex-bib') || BIBTEX_TEMPLATE
+    } catch {
+      return BIBTEX_TEMPLATE
+    }
+  })
+  const [latexCopied, setLatexCopied] = useState(false)
+
+  const handleLatexChange = (val: string) => {
+    if (latexFile === 'main') {
+      setLatexMainCode(val)
+      try {
+        localStorage.setItem('antares:latex-main', val)
+      } catch {}
+    } else {
+      setLatexBibCode(val)
+      try {
+        localStorage.setItem('antares:latex-bib', val)
+      } catch {}
+    }
+  }
+
+  const handleCopyLatex = async () => {
+    const code = latexFile === 'main' ? latexMainCode : latexBibCode
+    if (await copyText(code)) {
+      setLatexCopied(true)
+      setTimeout(() => setLatexCopied(false), 2000)
+    }
+  }
+
+  const handleApplyTemplate = (tpl: 'ieee' | 'standard') => {
+    setLatexTemplate(tpl)
+    const code = tpl === 'ieee' ? IEEE_TEMPLATE : STANDARD_TEMPLATE
+    setLatexMainCode(code)
+    try {
+      localStorage.setItem('antares:latex-main', code)
+    } catch {}
+  }
+
+  const handleInsertSnippet = (snippet: string) => {
+    if (latexFile === 'main') {
+      const next = latexMainCode.trimEnd() + '\n\n' + snippet + '\n'
+      setLatexMainCode(next)
+      try {
+        localStorage.setItem('antares:latex-main', next)
+      } catch {}
+    } else {
+      const next = latexBibCode.trimEnd() + '\n\n' + snippet + '\n'
+      setLatexBibCode(next)
+      try {
+        localStorage.setItem('antares:latex-bib', next)
+      } catch {}
+    }
+  }
 
   // Auto-reload preview iframe when a chat turn completes
   useEffect(() => {
@@ -145,6 +366,7 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
     const handleMsg = (event: MessageEvent) => {
       if (event.data?.type === 'gdocs:connected') {
         setGoogleConnected(true)
+        setConnectingGoogle(false)
       }
     }
     window.addEventListener('message', handleMsg)
@@ -205,7 +427,7 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
     }
   }
 
-  const handleSaveSettings = async () => {
+  const handleSaveSettings = async (closeModal = true) => {
     setSavingSettings(true)
     setSaveSuccess(false)
     try {
@@ -223,10 +445,16 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
         },
       })
       setSaveSuccess(true)
-      setTimeout(() => {
-        setSaveSuccess(false)
-        setSettingsOpen(false)
-      }, 1000)
+      if (closeModal) {
+        setTimeout(() => {
+          setSaveSuccess(false)
+          setSettingsOpen(false)
+        }, 1000)
+      } else {
+        setTimeout(() => {
+          setSaveSuccess(false)
+        }, 2000)
+      }
     } catch {
       // Error handled
     } finally {
@@ -279,6 +507,15 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
           >
             <FileText className="size-3.5" />
             <span>{t('research.gdocs')}</span>
+          </Button>
+          <Button
+            variant={tab === 'latex' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setTab('latex')}
+            className="gap-1.5 text-xs"
+          >
+            <FileCode className="size-3.5" />
+            <span>{t('research.latex')}</span>
           </Button>
           <Button
             variant={tab === 'zotero' ? 'default' : 'ghost'}
@@ -369,6 +606,55 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
             ) : null}
           </div>
 
+          {/* Sub-bar: OAuth Agent indicator & Iframe browser session notice */}
+          <div className="flex items-center justify-between border-b border-border bg-card/40 px-3 py-1.5 text-xs">
+            <div className="flex items-center gap-2">
+              {googleConnected ? (
+                <span
+                  className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-500"
+                  title={t('research.agentConnectedBadge')}
+                >
+                  <CheckCircle className="size-3.5 shrink-0" />
+                  <span>{t('research.agentConnectedBadge')}</span>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSettingsTab('gdocs')
+                    setSettingsOpen(true)
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-500 hover:bg-amber-500/20"
+                  title={t('research.agentNotConnectedBadge')}
+                >
+                  <WarningCircle className="size-3.5 shrink-0" />
+                  <span>{t('research.agentNotConnectedBadge')}</span>
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <div
+                className="flex cursor-help items-center gap-1 text-[11px] hover:text-foreground"
+                title={t('research.iframeLoginNotice')}
+              >
+                <Info className="size-3.5 shrink-0" />
+                <span className="hidden sm:inline text-[10px]">{t('research.docTipTitle')}</span>
+              </div>
+              {docUrl && isSafeGoogleDocUrl(docUrl) ? (
+                <a
+                  href={getCleanDocUrl(docUrl)}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+                >
+                  <span>{t('research.openDoc')}</span>
+                  <ArrowSquareOut className="size-3" />
+                </a>
+              ) : null}
+            </div>
+          </div>
+
           <div className="relative flex-1 bg-background/30">
             {docUrl && previewActive && getEmbedUrl(docUrl, frameKey, docViewMode) ? (
               <iframe
@@ -400,7 +686,205 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
         </div>
       )}
 
-      {/* Tab 2: Zotero Collections & Library */}
+      {/* Tab 2: LaTeX & BibTeX Academic Editor */}
+      {tab === 'latex' && (
+        <div className="flex flex-1 flex-col overflow-hidden">
+          {/* Sub-bar: File selector & Template switcher & Actions */}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-background/50 p-2.5">
+            <div className="flex items-center gap-1.5">
+              <Button
+                size="sm"
+                variant={latexFile === 'main' ? 'default' : 'outline'}
+                className="h-7 gap-1 text-[11px]"
+                onClick={() => setLatexFile('main')}
+              >
+                <FileCode className="size-3.5" />
+                <span>{t('research.latexMainTex')}</span>
+              </Button>
+              <Button
+                size="sm"
+                variant={latexFile === 'bib' ? 'default' : 'outline'}
+                className="h-7 gap-1 text-[11px]"
+                onClick={() => setLatexFile('bib')}
+              >
+                <BookOpen className="size-3.5" />
+                <span>{t('research.latexRefBib')}</span>
+              </Button>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              {/* Toggle Editor vs Live Academic Preview */}
+              <div className="flex items-center rounded-[var(--radius-md)] border border-border bg-card/60 p-0.5 text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => setLatexViewMode('editor')}
+                  className={cn(
+                    'px-2 py-0.5 rounded-[var(--radius-sm)] transition-colors',
+                    latexViewMode === 'editor'
+                      ? 'bg-primary text-primary-foreground font-medium'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {t('research.modeEdit')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLatexViewMode('preview')}
+                  className={cn(
+                    'px-2 py-0.5 rounded-[var(--radius-sm)] transition-colors',
+                    latexViewMode === 'preview'
+                      ? 'bg-primary text-primary-foreground font-medium'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {t('research.modePreview')}
+                </button>
+              </div>
+
+              {latexViewMode === 'editor' && latexFile === 'main' ? (
+                <div className="flex items-center rounded-[var(--radius-md)] border border-border bg-card/60 p-0.5 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => handleApplyTemplate('ieee')}
+                    className={cn(
+                      'px-2 py-0.5 rounded-[var(--radius-sm)] transition-colors',
+                      latexTemplate === 'ieee' ? 'bg-primary text-primary-foreground font-medium' : 'text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    IEEE
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleApplyTemplate('standard')}
+                    className={cn(
+                      'px-2 py-0.5 rounded-[var(--radius-sm)] transition-colors',
+                      latexTemplate === 'standard' ? 'bg-primary text-primary-foreground font-medium' : 'text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    Article
+                  </button>
+                </div>
+              ) : null}
+
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1 text-[11px]"
+                onClick={handleCopyLatex}
+                title={t('research.latexCopyOverleaf')}
+              >
+                {latexCopied ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
+                <span>{latexCopied ? t('research.latexCopied') : t('research.latexCopyOverleaf')}</span>
+              </Button>
+
+              {onInsertToChat ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 gap-1 text-[11px] text-primary"
+                  onClick={() => {
+                    const code = latexFile === 'main' ? latexMainCode : latexBibCode
+                    const filename = latexFile === 'main' ? 'paper.tex' : 'references.bib'
+                    onInsertToChat(
+                      `Berikut adalah file ${filename} saya:\n\n\`\`\`latex\n${code}\n\`\`\`\n\nMohon bantu lengkapi / perbaiki naskah ini sesuai kaidah jurnal ilmiah.`,
+                    )
+                  }}
+                  title={t('research.latexInsertChat')}
+                >
+                  <PencilSimple className="size-3" />
+                  <span>{t('research.latexInsertChat')}</span>
+                </Button>
+              ) : null}
+
+              <a
+                href="https://www.overleaf.com/project"
+                target="_blank"
+                rel="noreferrer noopener"
+                className="inline-flex h-7 items-center justify-center gap-1 rounded-[var(--radius-md)] border border-border bg-card px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                title="Open Overleaf"
+              >
+                <span>Overleaf</span>
+                <ArrowSquareOut className="size-3" />
+              </a>
+            </div>
+          </div>
+
+          {/* Main Content: Live Academic Preview OR Editor */}
+          {latexViewMode === 'preview' ? (
+            <LatexPreview
+              texContent={latexMainCode}
+              bibContent={latexBibCode}
+              className="flex-1 overflow-hidden"
+            />
+          ) : (
+            <>
+              {/* Snippet Toolbar (Quick Insert for Journal Items) */}
+              {latexFile === 'main' ? (
+                <div className="flex flex-wrap items-center gap-1.5 border-b border-border bg-card/40 px-3 py-1.5 text-[11px]">
+                  <span className="text-[10px] font-medium text-muted-foreground">Sisipkan:</span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleInsertSnippet(
+                        `% --- PLACEHOLDER GAMBAR (CAPTION DI BAWAH) ---\n\\begin{figure}[htbp]\n  \\centering\n  % \\includegraphics[width=0.85\\linewidth]{figures/flowchart.png}\n  \\fbox{\\rule{0pt}{2in} \\rule{0.85\\linewidth}{0pt}} % Kotak placeholder ilustrasi\n  \\caption{Gambar 2.1: Flowchart Metodologi Penelitian}\n  \\label{fig:flowchart}\n\\end{figure}`,
+                      )
+                    }
+                    className="rounded-[var(--radius-sm)] border border-border bg-card px-2 py-0.5 hover:bg-accent hover:text-accent-foreground"
+                  >
+                    {t('research.latexInsertFigure')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleInsertSnippet(
+                        `% --- TABEL FORMAL AKADEMIK (CAPTION DI ATAS) ---\n\\begin{table}[htbp]\n  \\caption{Tabel 2.1: Hasil Evaluasi Akurasi dan Metrik Model}\n  \\label{tab:hasil}\n  \\centering\n  \\begin{tabular}{|l|c|c|c|}\n    \\hline\n    \\textbf{Metode} & \\textbf{Presisi (\\%)} & \\textbf{Recall (\\%)} & \\textbf{F1-Score} \\\\\n    \\hline\n    Baseline & 84.5 & 82.1 & 0.832 \\\\\n    Usulan Sistem & \\textbf{95.2} & \\textbf{94.8} & \\textbf{0.950} \\\\\n    \\hline\n  \\end{tabular}\n\\end{table}`,
+                      )
+                    }
+                    className="rounded-[var(--radius-sm)] border border-border bg-card px-2 py-0.5 hover:bg-accent hover:text-accent-foreground"
+                  >
+                    {t('research.latexInsertTable')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleInsertSnippet(
+                        `% --- PERSAMAAN MATEMATIKA BERSIFAT NUMBERED ---\n\\begin{equation}\n  f(x) = \\sum_{i=1}^{n} w_i \\cdot x_i + b\n  \\label{eq:rumus}\n\\end{equation}`,
+                      )
+                    }
+                    className="rounded-[var(--radius-sm)] border border-border bg-card px-2 py-0.5 hover:bg-accent hover:text-accent-foreground"
+                  >
+                    {t('research.latexInsertEquation')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleInsertSnippet(`\\cite{setiawan2024}`)}
+                    className="rounded-[var(--radius-sm)] border border-border bg-card px-2 py-0.5 hover:bg-accent hover:text-accent-foreground"
+                  >
+                    {t('research.latexInsertCitation')}
+                  </button>
+                </div>
+              ) : null}
+
+              {/* Code Textarea Editor */}
+              <div className="relative flex-1 p-2">
+                <textarea
+                  value={latexFile === 'main' ? latexMainCode : latexBibCode}
+                  onChange={(e) => handleLatexChange(e.target.value)}
+                  className="size-full resize-none rounded-[var(--radius-md)] border border-border bg-background/80 p-3 font-mono text-xs leading-relaxed text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  spellCheck={false}
+                  placeholder={
+                    latexFile === 'main'
+                      ? 'Masukkan kode LaTeX (\\documentclass{...})...'
+                      : 'Masukkan entri BibTeX (@article{...})...'
+                  }
+                />
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Tab 3: Zotero Collections & Library */}
       {tab === 'zotero' && (
         <div className="flex flex-1 flex-col overflow-y-auto p-4">
           <div className="mb-4 flex items-center justify-between">
@@ -646,7 +1130,7 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
                     {googleConnected ? (
                       <div className="flex items-center justify-between rounded-[var(--radius-md)] border border-emerald-500/20 bg-emerald-500/10 p-2.5 text-xs text-emerald-500">
                         <div className="flex items-center gap-1.5 font-medium">
-                          <CheckCircle className="size-4" />
+                          <CheckCircle className="size-4 shrink-0" />
                           <span>{t('research.gdocsConnectedOauth')}</span>
                         </div>
                         <Button
@@ -662,24 +1146,40 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
                           {t('research.disconnectGoogle')}
                         </Button>
                       </div>
+                    ) : connectingGoogle ? (
+                      <div className="flex items-center justify-between rounded-[var(--radius-md)] border border-blue-500/20 bg-blue-500/10 p-2.5 text-xs text-blue-400">
+                        <div className="flex items-center gap-2 font-medium">
+                          <Spinner className="size-4 animate-spin shrink-0 text-blue-400" />
+                          <span>{t('research.authorizingGoogle')}</span>
+                        </div>
+                        <span className="text-[11px] text-muted-foreground">{t('research.checkPopupWindow')}</span>
+                      </div>
                     ) : (
                       <Button
                         type="button"
                         size="sm"
                         disabled={!gdocsClientId || !gdocsClientSecret || connectingGoogle}
-                        loading={connectingGoogle}
                         className="w-full gap-1.5 bg-emerald-600 text-xs text-white hover:bg-emerald-700"
                         onClick={async () => {
                           setConnectingGoogle(true)
                           try {
-                            await handleSaveSettings()
+                            await handleSaveSettings(false)
                             const res = await get<{ url: string }>('/auth/google/url')
                             if (res.url) {
-                              window.open(res.url, 'google_oauth', 'width=600,height=700')
+                              const popup = window.open(res.url, 'google_oauth', 'width=600,height=700')
+                              const timer = setInterval(() => {
+                                if (!popup || popup.closed) {
+                                  clearInterval(timer)
+                                  setConnectingGoogle(false)
+                                  get<{ connected: boolean }>('/auth/google/status')
+                                    .then((r) => setGoogleConnected(!!r.connected))
+                                    .catch(() => {})
+                                }
+                              }, 1000)
+                            } else {
+                              setConnectingGoogle(false)
                             }
                           } catch {
-                            // ignore
-                          } finally {
                             setConnectingGoogle(false)
                           }
                         }}
@@ -704,7 +1204,7 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
               </Button>
               <Button
                 size="sm"
-                onClick={handleSaveSettings}
+                onClick={() => handleSaveSettings(true)}
                 loading={savingSettings}
                 className="gap-1.5"
               >
