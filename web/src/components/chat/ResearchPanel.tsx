@@ -13,6 +13,7 @@ import {
   Info,
   Key,
   MagnifyingGlass,
+  PencilSimple,
   X,
 } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
@@ -99,6 +100,7 @@ function doGet(e) {
 export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchPanelProps) {
   const { t } = useI18n()
   const [tab, setTab] = useState<'zotero' | 'gdocs'>('gdocs')
+  const [docViewMode, setDocViewMode] = useState<'edit' | 'preview'>('edit')
   const [frameKey, setFrameKey] = useState(0)
 
   // Auto-reload preview iframe when a chat turn completes
@@ -251,11 +253,14 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
     return ''
   }
 
-  // Convert standard edit Google Doc URL to /preview embed URL safely
-  const getEmbedUrl = (url: string, key: number) => {
+  // Convert standard edit Google Doc URL to /edit?rm=minimal (for live editing) or /preview safely
+  const getEmbedUrl = (url: string, key: number, mode: 'edit' | 'preview' = 'edit') => {
     if (!url) return ''
     const match = url.trim().match(/\/document\/d\/([a-zA-Z0-9_-]{20,})/)
     if (match && match[1]) {
+      if (mode === 'edit') {
+        return `https://docs.google.com/document/d/${match[1]}/edit?rm=minimal&cb=${key}`
+      }
       return `https://docs.google.com/document/d/${match[1]}/preview?cb=${key}`
     }
     return ''
@@ -330,6 +335,18 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
             {docUrl ? (
               <>
                 <Button
+                  size="sm"
+                  variant={docViewMode === 'edit' ? 'default' : 'outline'}
+                  onClick={() => setDocViewMode((m) => (m === 'edit' ? 'preview' : 'edit'))}
+                  className="h-8 gap-1 px-2 text-xs"
+                  title={docViewMode === 'edit' ? t('research.modePreview') : t('research.modeEdit')}
+                >
+                  <PencilSimple className="size-3.5" />
+                  <span className="hidden sm:inline text-[11px] font-medium">
+                    {docViewMode === 'edit' ? t('research.modeEdit') : t('research.modePreview')}
+                  </span>
+                </Button>
+                <Button
                   size="icon-sm"
                   variant="outline"
                   onClick={() => setFrameKey((k) => k + 1)}
@@ -354,13 +371,13 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
           </div>
 
           <div className="relative flex-1 bg-background/30">
-            {docUrl && previewActive && getEmbedUrl(docUrl, frameKey) ? (
+            {docUrl && previewActive && getEmbedUrl(docUrl, frameKey, docViewMode) ? (
               <iframe
-                key={frameKey}
-                src={getEmbedUrl(docUrl, frameKey)}
-                title="Google Docs Preview"
+                key={`${frameKey}-${docViewMode}`}
+                src={getEmbedUrl(docUrl, frameKey, docViewMode)}
+                title="Google Docs Canvas"
                 className="size-full border-0 bg-white"
-                allow="autoplay"
+                allow="clipboard-read; clipboard-write; autoplay; fullscreen"
               />
             ) : (
               <div className="flex size-full flex-col items-center justify-center p-6 text-center text-muted-foreground">

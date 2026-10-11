@@ -845,6 +845,10 @@ const ja: Dict = {
   'research.gdocsConnectedOauth': 'Google Docs と接続済み (OAuth)',
   'research.connectGoogle': 'Google アカウントを連携 (ログイン)',
   'research.disconnectGoogle': '連携解除',
+
+  'research.modeEdit': '編集モード',
+  'research.modePreview': 'プレビューモード',
+  'research.dragResize': 'ドラッグして幅を調整',
 }
 
 export default ja

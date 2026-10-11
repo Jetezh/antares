@@ -1318,6 +1318,10 @@ const en = {
   'research.gdocsConnectedOauth': 'Connected with Google Docs (OAuth)',
   'research.connectGoogle': 'Connect Google Account (Sign In)',
   'research.disconnectGoogle': 'Disconnect',
+
+  'research.modeEdit': 'Edit Mode',
+  'research.modePreview': 'Preview Mode',
+  'research.dragResize': 'Drag to resize split view',
 } as const
 
 export type MessageKey = keyof typeof en

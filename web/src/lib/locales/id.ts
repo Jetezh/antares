@@ -1166,6 +1166,10 @@ const id: Dict = {
   'research.gdocsConnectedOauth': 'Terhubung dengan Google Docs (OAuth)',
   'research.connectGoogle': 'Hubungkan Akun Google (Login)',
   'research.disconnectGoogle': 'Putuskan',
+
+  'research.modeEdit': 'Mode Edit',
+  'research.modePreview': 'Mode Pratinjau',
+  'research.dragResize': 'Geser untuk mengubah lebar panel',
 }
 
 export default id

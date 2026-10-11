@@ -843,6 +843,10 @@ const zh: Dict = {
   'research.gdocsConnectedOauth': '已关联 Google Docs (OAuth)',
   'research.connectGoogle': '关联 Google 账户 (登录)',
   'research.disconnectGoogle': '解除关联',
+
+  'research.modeEdit': '编辑模式',
+  'research.modePreview': '预览模式',
+  'research.dragResize': '拖动调整分屏宽度',
 }
 
 export default zh

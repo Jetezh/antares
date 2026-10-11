@@ -846,6 +846,10 @@ const ru: Dict = {
   'research.gdocsConnectedOauth': 'Подключено к Google Docs (OAuth)',
   'research.connectGoogle': 'Подключить Google-аккаунт (Войти)',
   'research.disconnectGoogle': 'Отключить',
+
+  'research.modeEdit': 'Режим редактирования',
+  'research.modePreview': 'Режим просмотра',
+  'research.dragResize': 'Потяните, чтобы изменить ширину',
 }
 
 export default ru

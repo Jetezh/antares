@@ -23,6 +23,7 @@ import {
 import { useChatStream } from '@/lib/useChatStream'
 import type { LiveStatus, ForegroundRun } from '@/lib/chatStreamController'
 import { copyText } from '@/lib/clipboard'
+import { cn } from '@/lib/utils'
 import { useI18n, type MessageKey } from '@/lib/i18n'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/primitives'
@@ -235,6 +236,48 @@ export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false)
   const [researchSplitOpen, setResearchSplitOpen] = useState(false)
+  const [splitWidth, setSplitWidth] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('antares:research-split-width')
+      if (saved) {
+        const parsed = parseInt(saved, 10)
+        if (parsed >= 320 && parsed <= 1200) return parsed
+      }
+    } catch {
+      /* ignore */
+    }
+    return 550
+  })
+  const [isDraggingSplit, setIsDraggingSplit] = useState(false)
+
+  // Drag-to-resize listener for the Research / Split View panel
+  useEffect(() => {
+    if (!isDraggingSplit) return
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const rawWidth = window.innerWidth - e.clientX
+      const minWidth = 320
+      const maxWidth = Math.max(minWidth, Math.min(1200, window.innerWidth - 380))
+      const clamped = Math.max(minWidth, Math.min(maxWidth, rawWidth))
+      setSplitWidth(clamped)
+      try {
+        localStorage.setItem('antares:research-split-width', String(clamped))
+      } catch {
+        /* ignore */
+      }
+    }
+
+    const handleMouseUp = () => {
+      setIsDraggingSplit(false)
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [isDraggingSplit])
   // Bumped when a turn finishes, so the sidebar re-reads project_info the agent
   // may have just written.
   const [sidebarRefresh, setSidebarRefresh] = useState(0)
@@ -1514,16 +1557,42 @@ export default function ChatPage() {
 
       {/* Split View: Research & Google Docs Viewer Panel */}
       {researchSplitOpen ? (
-        <div className="hidden w-[28rem] shrink-0 md:block lg:w-[36rem] xl:w-[42rem]">
-          <ResearchPanel
-            refreshKey={sidebarRefresh}
-            onClose={() => setResearchSplitOpen(false)}
-            onInsertToChat={(text) => {
-              setInput(text)
-              textareaRef.current?.focus()
+        <>
+          {/* Drag Handle Divider */}
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label={t('research.dragResize')}
+            title={t('research.dragResize')}
+            onMouseDown={(e) => {
+              e.preventDefault()
+              setIsDraggingSplit(true)
             }}
-          />
-        </div>
+            className={cn(
+              'group relative hidden w-2 shrink-0 cursor-col-resize items-center justify-center transition-colors hover:bg-primary/20 md:flex',
+              isDraggingSplit && 'bg-primary/30',
+            )}
+          >
+            <div className="h-8 w-1 rounded-full bg-border transition-colors group-hover:bg-primary" />
+          </div>
+
+          <div
+            style={{ width: `${splitWidth}px` }}
+            className={cn(
+              'hidden shrink-0 md:block',
+              isDraggingSplit && 'select-none pointer-events-none',
+            )}
+          >
+            <ResearchPanel
+              refreshKey={sidebarRefresh}
+              onClose={() => setResearchSplitOpen(false)}
+              onInsertToChat={(text) => {
+                setInput(text)
+                textareaRef.current?.focus()
+              }}
+            />
+          </div>
+        </>
       ) : null}
     </div>
   )
