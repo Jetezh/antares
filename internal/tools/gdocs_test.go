@@ -9,6 +9,9 @@ import (
 )
 
 func TestGDocsTools(t *testing.T) {
+	AllowInsecureTestWebhook = true
+	defer func() { AllowInsecureTestWebhook = false }()
+
 	// Mock server for Google Apps Script Webhook
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {

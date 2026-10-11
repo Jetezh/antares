@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/enowdev/antares/internal/config"
+	"github.com/enowdev/antares/internal/tools"
 )
 
 func extractGoogleDocID(raw string) string {
@@ -58,6 +59,33 @@ func (s *Server) handleSaveResearchSettings(w http.ResponseWriter, r *http.Reque
 	if err := decodeBody(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, err)
 		return
+	}
+
+	// Security validation on all incoming inputs
+	if body.Zotero.UserID != "" || body.Zotero.APIKey != "" {
+		if err := tools.ValidateZoteroCreds(body.Zotero.UserID, body.Zotero.APIKey); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+	}
+	if body.GDocs.WebhookURL != "" {
+		if err := tools.ValidateGDocsWebhookURL(body.GDocs.WebhookURL); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+	}
+	if body.GDocs.DocumentURL != "" {
+		docID := extractGoogleDocID(body.GDocs.DocumentURL)
+		if err := tools.ValidateGDocsDocID(docID); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+	}
+	if body.GDocs.OAuthClientID != "" || body.GDocs.OAuthClientSecret != "" {
+		if err := tools.ValidateGoogleOAuthCreds(body.GDocs.OAuthClientID, body.GDocs.OAuthClientSecret); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
 	}
 
 	cfg, err := config.Reload()

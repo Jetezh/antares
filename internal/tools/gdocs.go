@@ -52,12 +52,21 @@ func resolveGDocsEndpoint(in Input, argWebhookURL, argDocumentID string) (method
 	}
 
 	if preferredMethod == "oauth" && docID != "" {
+		if err := ValidateGDocsDocID(docID); err != nil {
+			return "", "", err
+		}
 		return "oauth", docID, nil
 	}
 	if webhookURL != "" {
+		if err := ValidateGDocsWebhookURL(webhookURL); err != nil {
+			return "", "", err
+		}
 		return "webhook", webhookURL, nil
 	}
 	if docID != "" {
+		if err := ValidateGDocsDocID(docID); err != nil {
+			return "", "", err
+		}
 		return "oauth", docID, nil
 	}
 

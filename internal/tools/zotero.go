@@ -35,6 +35,10 @@ func resolveZoteroCreds(in Input, argUserID, argAPIKey string) (userID, apiKey s
 		return "", "", fmt.Errorf("zotero API key is required. Pass api_key or configure research.zotero.api_key in config")
 	}
 
+	if err := ValidateZoteroCreds(userID, apiKey); err != nil {
+		return "", "", err
+	}
+
 	// If userID is not provided, fetch it using the key info endpoint
 	if userID == "" {
 		resolvedID, err := fetchZoteroUserIDFromKey(apiKey)
@@ -373,6 +377,10 @@ func (zoteroCiteTool) Execute(ctx context.Context, in Input) Result {
 
 	if len(args.ItemKeys) == 0 {
 		return Errorf("item_keys list cannot be empty")
+	}
+
+	if err := ValidateZoteroItemKeys(args.ItemKeys); err != nil {
+		return Errorf("%v", err)
 	}
 
 	style := strings.TrimSpace(strings.ToLower(args.Style))

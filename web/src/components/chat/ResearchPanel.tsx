@@ -239,14 +239,26 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
     }
   }
 
-  // Convert standard edit Google Doc URL to /preview embed URL
-  const getEmbedUrl = (url: string) => {
-    if (!url) return ''
-    const match = url.match(/\/document\/d\/([a-zA-Z0-9-_]+)/)
+  const isSafeGoogleDocUrl = (url: string) => {
+    return /^https:\/\/docs\.google\.com\/document\/d\/[a-zA-Z0-9_-]{20,}/i.test(url.trim())
+  }
+
+  const getCleanDocUrl = (url: string) => {
+    const match = url.trim().match(/\/document\/d\/([a-zA-Z0-9_-]{20,})/)
     if (match && match[1]) {
-      return `https://docs.google.com/document/d/${match[1]}/preview`
+      return `https://docs.google.com/document/d/${match[1]}/edit`
     }
-    return url
+    return ''
+  }
+
+  // Convert standard edit Google Doc URL to /preview embed URL safely
+  const getEmbedUrl = (url: string, key: number) => {
+    if (!url) return ''
+    const match = url.trim().match(/\/document\/d\/([a-zA-Z0-9_-]{20,})/)
+    if (match && match[1]) {
+      return `https://docs.google.com/document/d/${match[1]}/preview?cb=${key}`
+    }
+    return ''
   }
 
   return (
@@ -326,24 +338,26 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
                 >
                   <ArrowsClockwise className="size-4" />
                 </Button>
-                <a
-                  href={docUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex size-8 items-center justify-center rounded-[var(--radius-md)] border border-border bg-card text-muted-foreground hover:text-foreground"
-                  title={t('research.openDoc')}
-                >
-                  <ArrowSquareOut className="size-4" />
-                </a>
+                {isSafeGoogleDocUrl(docUrl) ? (
+                  <a
+                    href={getCleanDocUrl(docUrl)}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="inline-flex size-8 items-center justify-center rounded-[var(--radius-md)] border border-border bg-card text-muted-foreground hover:text-foreground"
+                    title={t('research.openDoc')}
+                  >
+                    <ArrowSquareOut className="size-4" />
+                  </a>
+                ) : null}
               </>
             ) : null}
           </div>
 
           <div className="relative flex-1 bg-background/30">
-            {docUrl && previewActive ? (
+            {docUrl && previewActive && getEmbedUrl(docUrl, frameKey) ? (
               <iframe
                 key={frameKey}
-                src={`${getEmbedUrl(docUrl)}${docUrl.includes('?') ? '&' : '?'}cb=${frameKey}`}
+                src={getEmbedUrl(docUrl, frameKey)}
                 title="Google Docs Preview"
                 className="size-full border-0 bg-white"
                 allow="autoplay"
