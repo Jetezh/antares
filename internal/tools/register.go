@@ -80,7 +80,7 @@ func init() {
 		hackbrowserTool{},
 		// Academic & Research integration tools: Zotero & Google Docs.
 		zoteroCollectionsTool{}, zoteroSearchTool{}, zoteroCiteTool{},
-		gdocsReadTool{}, gdocsUpdateTool{},
+		gdocsReadTool{}, gdocsUpdateTool{}, gdocsRollbackTool{},
 	} {
 		globalRegistry.Register(t)
 	}

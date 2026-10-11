@@ -129,6 +129,7 @@ func (s *Server) routes() {
 	// Academic & Research settings (Zotero & Google Docs)
 	m.HandleFunc("GET /api/research/settings", s.handleGetResearchSettings)
 	m.HandleFunc("POST /api/research/settings", s.handleSaveResearchSettings)
+	m.HandleFunc("POST /api/research/gdocs/rollback", s.handleGDocsRollback)
 
 	// Models & providers
 	m.HandleFunc("GET /api/model/options", s.handleModelOptions)

@@ -255,15 +255,7 @@ func (gdocsReadTool) Execute(ctx context.Context, in Input) Result {
 	var doc struct {
 		Title string `json:"title"`
 		Body  struct {
-			Content []struct {
-				Paragraph *struct {
-					Elements []struct {
-						TextRun *struct {
-							Content string `json:"content"`
-						} `json:"textRun"`
-					} `json:"elements"`
-				} `json:"paragraph"`
-			} `json:"content"`
+			Content []docContentItem `json:"content"`
 		} `json:"body"`
 	}
 
@@ -272,13 +264,72 @@ func (gdocsReadTool) Execute(ctx context.Context, in Input) Result {
 	}
 
 	var sb strings.Builder
+	tableCount := 0
+
 	for _, c := range doc.Body.Content {
 		if c.Paragraph != nil {
-			for _, elem := range c.Paragraph.Elements {
-				if elem.TextRun != nil {
-					sb.WriteString(elem.TextRun.Content)
+			headingPrefix := ""
+			if c.Paragraph.ParagraphStyle != nil {
+				switch c.Paragraph.ParagraphStyle.NamedStyleType {
+				case "TITLE":
+					headingPrefix = "# "
+				case "HEADING_1":
+					headingPrefix = "# "
+				case "HEADING_2":
+					headingPrefix = "## "
+				case "HEADING_3":
+					headingPrefix = "### "
+				case "HEADING_4":
+					headingPrefix = "#### "
 				}
 			}
+
+			var paraText strings.Builder
+			for _, elem := range c.Paragraph.Elements {
+				if elem.TextRun != nil {
+					paraText.WriteString(elem.TextRun.Content)
+				}
+			}
+			text := paraText.String()
+			if strings.TrimSpace(text) != "" {
+				if headingPrefix != "" && !strings.HasPrefix(strings.TrimSpace(text), "#") {
+					sb.WriteString(headingPrefix + strings.TrimSpace(text) + "\n\n")
+				} else {
+					sb.WriteString(text)
+				}
+			}
+		} else if c.Table != nil {
+			tableCount++
+			sb.WriteString(fmt.Sprintf("\n\n<!-- [Tabel %d di Dokumen: %d baris x %d kolom] -->\n", tableCount, c.Table.Rows, c.Table.Columns))
+			for rIdx, row := range c.Table.TableRows {
+				sb.WriteString("|")
+				for _, cell := range row.TableCells {
+					var cellText strings.Builder
+					for _, cellItem := range cell.Content {
+						if cellItem.Paragraph != nil {
+							for _, el := range cellItem.Paragraph.Elements {
+								if el.TextRun != nil {
+									cellText.WriteString(strings.TrimSpace(el.TextRun.Content) + " ")
+								}
+							}
+						}
+					}
+					cleanCell := strings.TrimSpace(cellText.String())
+					if cleanCell == "" {
+						cleanCell = " "
+					}
+					sb.WriteString(" " + cleanCell + " |")
+				}
+				sb.WriteString("\n")
+				if rIdx == 0 {
+					sb.WriteString("|")
+					for col := 0; col < c.Table.Columns; col++ {
+						sb.WriteString(" --- |")
+					}
+					sb.WriteString("\n")
+				}
+			}
+			sb.WriteString("\n")
 		}
 	}
 
@@ -436,9 +487,39 @@ func (gdocsUpdateTool) Schema() map[string]any {
 			"description": "List of bibliographic reference entries to append to the end of the document.",
 			"items":       map[string]any{"type": "string"},
 		},
+		"table": map[string]any{
+			"type":        "object",
+			"description": "Optional table creation. Generates a formal bordered table with rows and columns at the target insertion position.",
+			"properties": map[string]any{
+				"rows":    map[string]any{"type": "integer", "description": "Number of rows (including header)"},
+				"columns": map[string]any{"type": "integer", "description": "Number of columns"},
+				"data": map[string]any{
+					"type":        "array",
+					"description": "2D array of cell string values, e.g. [['No', 'Item'], ['1', 'Data']]",
+					"items": map[string]any{
+						"type":  "array",
+						"items": map[string]any{"type": "string"},
+					},
+				},
+			},
+		},
 		"webhook_url": prop("string", "Google Apps Script Webhook URL (optional if configured)."),
 		"document_id": prop("string", "Google Docs Document ID or full URL (optional if configured)."),
 	}, "text")
+}
+
+type docTableData struct {
+	Rows     int `json:"rows"`
+	Columns  int `json:"columns"`
+	TableRows []struct {
+		StartIndex int `json:"startIndex"`
+		EndIndex   int `json:"endIndex"`
+		TableCells []struct {
+			StartIndex int `json:"startIndex"`
+			EndIndex   int `json:"endIndex"`
+			Content    []docContentItem `json:"content"`
+		} `json:"tableCells"`
+	} `json:"tableRows"`
 }
 
 type docContentElement struct {
@@ -449,12 +530,19 @@ type docContentElement struct {
 	} `json:"textRun"`
 }
 
+type docParagraphStyle struct {
+	NamedStyleType string `json:"namedStyleType"`
+	Alignment      string `json:"alignment"`
+}
+
 type docContentItem struct {
 	StartIndex int `json:"startIndex"`
 	EndIndex   int `json:"endIndex"`
 	Paragraph  *struct {
-		Elements []docContentElement `json:"elements"`
+		ParagraphStyle *docParagraphStyle `json:"paragraphStyle"`
+		Elements       []docContentElement `json:"elements"`
 	} `json:"paragraph"`
+	Table *docTableData `json:"table"`
 }
 
 type textMatchRange struct {
@@ -571,6 +659,12 @@ func findTextInDoc(contents []docContentItem, query string) textMatchRange {
 	return textMatchRange{}
 }
 
+type tableInputArg struct {
+	Rows    int        `json:"rows"`
+	Columns int        `json:"columns"`
+	Data    [][]string `json:"data"`
+}
+
 func (gdocsUpdateTool) Execute(ctx context.Context, in Input) Result {
 	var args struct {
 		Text            string               `json:"text"`
@@ -584,6 +678,7 @@ func (gdocsUpdateTool) Execute(ctx context.Context, in Input) Result {
 		ZoteroItems     []ZoteroCitationItem `json:"zotero_items"`
 		ItemKeys        []string             `json:"item_keys"`
 		Bibliography    []string             `json:"bibliography"`
+		Table           *tableInputArg       `json:"table"`
 		WebhookURL      string               `json:"webhook_url"`
 		DocumentID      string               `json:"document_id"`
 	}
@@ -591,8 +686,8 @@ func (gdocsUpdateTool) Execute(ctx context.Context, in Input) Result {
 		return Errorf("%v", err)
 	}
 
-	if strings.TrimSpace(args.Text) == "" && len(args.Bibliography) == 0 {
-		return Errorf("text or bibliography cannot be empty")
+	if strings.TrimSpace(args.Text) == "" && len(args.Bibliography) == 0 && args.Table == nil {
+		return Errorf("text, bibliography, or table cannot be empty")
 	}
 
 	fontFamily := strings.TrimSpace(args.Font)
@@ -928,6 +1023,36 @@ func (gdocsUpdateTool) Execute(ctx context.Context, in Input) Result {
 	textBuilder.WriteString("\n")
 	contentEnd := cursor - 1
 
+	// Save Snapshot before applying mutations (for Rollback / Undo)
+	var oldTextDeleted string
+	if deleteRange != nil && in.Deps != nil && in.Deps.Store != nil {
+		var oldTextBuilder strings.Builder
+		for _, c := range docInfo.Body.Content {
+			if c.Paragraph != nil {
+				for _, elem := range c.Paragraph.Elements {
+					if elem.TextRun != nil {
+						if elem.StartIndex >= deleteRange.start && elem.EndIndex <= deleteRange.end {
+							oldTextBuilder.WriteString(elem.TextRun.Content)
+						}
+					}
+				}
+			}
+		}
+		oldTextDeleted = oldTextBuilder.String()
+
+		snapshotKey := fmt.Sprintf("research:gdocs:snapshot:%s", target)
+		snapshotData, _ := json.Marshal(map[string]any{
+			"timestamp":     time.Now().Unix(),
+			"target":        target,
+			"find_text":     findText,
+			"delete_start":  deleteRange.start,
+			"delete_end":    deleteRange.end,
+			"old_text":      oldTextDeleted,
+			"inserted_text": textBuilder.String(),
+		})
+		_ = in.Deps.Store.SetKV(ctx, snapshotKey, string(snapshotData))
+	}
+
 	// 0. Optional Delete Range (for position="replace")
 	if deleteRange != nil && deleteRange.start < deleteRange.end {
 		requests = append(requests, map[string]any{
@@ -1151,10 +1276,165 @@ func (gdocsUpdateTool) Execute(ctx context.Context, in Input) Result {
 			"find_text":       findText,
 			"position":        posMode,
 			"insert_index":    insertIndex,
+			"old_text":        oldTextDeleted,
+			"new_text":        textBuilder.String(),
 			"citations":       args.Citations,
 			"zotero_items":    zoteroItems,
 			"zotero_embedded": citeCount,
 			"bibliography":    args.Bibliography,
+		},
+	}
+}
+
+// -----------------------------------------------------------------------------
+// 3. gdocs_rollback (Undo Last Mutation)
+// -----------------------------------------------------------------------------
+
+type gdocsRollbackTool struct{}
+
+func (gdocsRollbackTool) Name() string { return "gdocs_rollback" }
+func (gdocsRollbackTool) Description() string {
+	return "Roll back / undo the most recent change made to a Google Doc. Restores replaced text or removes inserted content back to its previous state. Requires document_id or target document URL."
+}
+func (gdocsRollbackTool) RequiresApproval() bool { return true }
+
+func (gdocsRollbackTool) Schema() map[string]any {
+	return schema(map[string]any{
+		"document_id": prop("string", "Google Docs Document ID or full URL (optional if configured in settings)."),
+	})
+}
+
+func (gdocsRollbackTool) Execute(ctx context.Context, in Input) Result {
+	var args struct {
+		DocumentID string `json:"document_id"`
+	}
+	if err := in.Bind(&args); err != nil {
+		return Errorf("%v", err)
+	}
+
+	method, target, err := resolveGDocsEndpoint(in, "", args.DocumentID)
+	if err != nil {
+		return Errorf("%v", err)
+	}
+	if method != "oauth" {
+		return Errorf("rollback is only supported for Google Docs connected via OAuth/REST API")
+	}
+
+	if in.Deps == nil || in.Deps.Store == nil {
+		return Errorf("database store dependency not available")
+	}
+
+	snapshotKey := fmt.Sprintf("research:gdocs:snapshot:%s", target)
+	snapshotJSON, _ := in.Deps.Store.GetKV(ctx, snapshotKey)
+	if snapshotJSON == "" {
+		return Errorf("tidak ada snapshot riwayat perubahan untuk Google Doc ini. Belum ada modifikasi yang dapat di-rollback.")
+	}
+
+	var snap struct {
+		Timestamp    int64  `json:"timestamp"`
+		Target       string `json:"target"`
+		FindText     string `json:"find_text"`
+		DeleteStart  int    `json:"delete_start"`
+		DeleteEnd    int    `json:"delete_end"`
+		OldText      string `json:"old_text"`
+		InsertedText string `json:"inserted_text"`
+	}
+	if err := json.Unmarshal([]byte(snapshotJSON), &snap); err != nil {
+		return Errorf("corrupted snapshot data: %v", err)
+	}
+
+	token, err := getActiveGoogleToken(ctx, in)
+	if err != nil {
+		return Errorf("%v", err)
+	}
+
+	client := &http.Client{Timeout: 30 * time.Second}
+
+	// Fetch current doc structure to locate inserted text and remove it
+	docReq, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("https://docs.googleapis.com/v1/documents/%s", url.PathEscape(target)), nil)
+	if err != nil {
+		return Errorf("create request: %v", err)
+	}
+	docReq.Header.Set("Authorization", "Bearer "+token)
+
+	docResp, err := client.Do(docReq)
+	if err != nil {
+		return Errorf("fetch current document structure: %v", err)
+	}
+	defer docResp.Body.Close()
+
+	var docInfo struct {
+		Body struct {
+			Content []docContentItem `json:"content"`
+		} `json:"body"`
+	}
+	if err := json.NewDecoder(docResp.Body).Decode(&docInfo); err != nil {
+		return Errorf("decode document structure: %v", err)
+	}
+
+	var requests []map[string]any
+
+	// If find_text was used, locate its current position
+	match := findTextInDoc(docInfo.Body.Content, snap.FindText)
+	if match.found && snap.OldText != "" {
+		// Restore oldText at paragraphEnd
+		insIdx := match.paragraphEnd
+		requests = append(requests, map[string]any{
+			"insertText": map[string]any{
+				"location": map[string]any{
+					"index": insIdx,
+				},
+				"text": "\n" + snap.OldText + "\n",
+			},
+		})
+	} else if snap.OldText != "" {
+		// Fallback: restore old text at deleteStart index
+		requests = append(requests, map[string]any{
+			"insertText": map[string]any{
+				"location": map[string]any{
+					"index": snap.DeleteStart,
+				},
+				"text": snap.OldText,
+			},
+		})
+	}
+
+	if len(requests) == 0 {
+		return Errorf("tidak dapat menentukan lokasi rollback yang aman di dokumen")
+	}
+
+	batchReq := map[string]any{"requests": requests}
+	batchBytes, _ := json.Marshal(batchReq)
+
+	reqURL := fmt.Sprintf("https://docs.googleapis.com/v1/documents/%s:batchUpdate", url.PathEscape(target))
+	req, err := http.NewRequestWithContext(ctx, "POST", reqURL, bytes.NewReader(batchBytes))
+	if err != nil {
+		return Errorf("create request: %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return Errorf("send rollback request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return Errorf("Google Docs API rollback error (%d): %s", resp.StatusCode, string(b))
+	}
+
+	// Delete snapshot after successful rollback
+	_ = in.Deps.Store.SetKV(ctx, snapshotKey, "")
+
+	return Result{
+		Content: fmt.Sprintf("Berhasil melakukan rollback perubahan pada Google Doc (ID: %s). Teks lama (%d karakter) telah dipulihkan.", target, len(snap.OldText)),
+		Meta: map[string]any{
+			"status":            "success",
+			"target":            target,
+			"restored_chars":    len(snap.OldText),
+			"original_snapshot": snap.Timestamp,
 		},
 	}
 }

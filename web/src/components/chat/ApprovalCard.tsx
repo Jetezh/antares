@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Check, ShieldWarning, X } from '@phosphor-icons/react'
 import { post } from '@/lib/api'
 import { useI18n } from '@/lib/i18n'
@@ -42,6 +42,22 @@ export function ApprovalCard({
     }
   }
 
+  const gdocsUpdateDiff = useMemo(() => {
+    if (approval.tool !== 'gdocs_update') return null
+    try {
+      const parsed = JSON.parse(approval.arguments) as Record<string, any>
+      return {
+        findText: parsed.find_text || '',
+        position: parsed.position || 'after',
+        endText: parsed.end_text || '',
+        text: parsed.text || '',
+        heading: parsed.heading || '',
+      }
+    } catch {
+      return null
+    }
+  }, [approval.tool, approval.arguments])
+
   const pretty = formatArguments(approval.arguments)
 
   return (
@@ -50,7 +66,39 @@ export function ApprovalCard({
         <ShieldWarning className="mt-0.5 size-4 shrink-0 text-[var(--warning)]" weight="fill" />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium">{approval.message || t('approval.title')}</p>
-          {pretty ? (
+
+          {gdocsUpdateDiff ? (
+            <div className="mt-2 space-y-2 rounded-[var(--radius-md)] border border-border bg-background/50 p-2.5 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-1 border-b border-border pb-1.5 font-mono text-[11px]">
+                <span className="font-semibold text-foreground">
+                  Target Google Docs: {gdocsUpdateDiff.findText ? `[${gdocsUpdateDiff.position.toUpperCase()}] "${gdocsUpdateDiff.findText}"` : 'Akhir Dokumen'}
+                </span>
+                {gdocsUpdateDiff.heading ? (
+                  <span className="rounded bg-muted px-1.5 py-0.2 text-[10px] text-muted-foreground">
+                    Style: {gdocsUpdateDiff.heading}
+                  </span>
+                ) : null}
+              </div>
+
+              {gdocsUpdateDiff.position === 'replace' && (gdocsUpdateDiff.findText || gdocsUpdateDiff.endText) ? (
+                <div className="rounded border border-destructive/30 bg-destructive/10 p-2 font-mono text-[11px] text-destructive">
+                  <p className="font-semibold mb-0.5">- Yang Akan Digantikan:</p>
+                  <p className="text-[10px] opacity-80">
+                    {gdocsUpdateDiff.endText
+                      ? `Seluruh isi antara "${gdocsUpdateDiff.findText}" s/d "${gdocsUpdateDiff.endText}"`
+                      : `Teks penanda "${gdocsUpdateDiff.findText}"`}
+                  </p>
+                </div>
+              ) : null}
+
+              <div className="rounded border border-emerald-500/30 bg-emerald-500/10 p-2 font-mono text-[11px] text-emerald-500">
+                <p className="font-semibold mb-0.5">+ Draf Teks Baru yang Akan Masuk:</p>
+                <p className="max-h-32 overflow-auto whitespace-pre-wrap text-[11px] text-foreground">
+                  {gdocsUpdateDiff.text}
+                </p>
+              </div>
+            </div>
+          ) : pretty ? (
             <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-[var(--radius-md)] border border-border bg-background/40 p-2.5 font-mono text-[11px] leading-relaxed">
               {pretty}
             </pre>

@@ -148,7 +148,8 @@ export const ToolCallCard = memo(function ToolCallCard({ call }: { call: ToolCal
   const meta = TOOL_META[call.name] ?? { label: call.name, Icon: Wrench }
   const isEdit = call.name === 'edit_file'
   const isCreate = call.name === 'write_file'
-  const isDiff = isEdit || isCreate
+  const isGdocs = call.name === 'gdocs_update'
+  const isDiff = isEdit || isCreate || isGdocs
   const isRead = call.name === 'read_file'
   const output = call.result ?? call.progress ?? ''
   const incomplete = isIncompleteToolCall(call)
@@ -160,13 +161,18 @@ export const ToolCallCard = memo(function ToolCallCard({ call }: { call: ToolCal
   const path = FILE_TOOLS.has(call.name) && typeof args.path === 'string' ? (args.path as string) : ''
   const fileName = path ? path.split('/').pop() || path : ''
   const parentPath = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : ''
-  const summary = path ? '' : summarize(call.name, args)
+  const summary = path ? '' : isGdocs && typeof args.find_text === 'string' && args.find_text ? `Target: [${String(args.position || 'after').toUpperCase()}] "${args.find_text}"` : summarize(call.name, args)
 
   const diff = useMemo<Diff>(() => {
     if (isEdit) return lineDiff(String(args.old_string ?? ''), String(args.new_string ?? ''))
     if (isCreate) return lineDiff('', String(args.content ?? ''))
+    if (isGdocs) {
+      const oldStr = typeof args.old_text === 'string' ? args.old_text : ''
+      const newStr = typeof args.text === 'string' ? args.text : ''
+      return lineDiff(oldStr, newStr)
+    }
     return { rows: [], added: 0, removed: 0 }
-  }, [isEdit, isCreate, args.old_string, args.new_string, args.content])
+  }, [isEdit, isCreate, isGdocs, args.old_string, args.new_string, args.content, args.old_text, args.text])
 
   // Lines read, for the collapsed read summary.
   const readLines = isRead && output.trim() ? output.trim().split('\n').length : 0

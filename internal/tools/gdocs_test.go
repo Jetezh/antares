@@ -119,7 +119,8 @@ func TestFindTextInDoc(t *testing.T) {
 			StartIndex: 1,
 			EndIndex:   19,
 			Paragraph: &struct {
-				Elements []docContentElement `json:"elements"`
+				ParagraphStyle *docParagraphStyle `json:"paragraphStyle"`
+				Elements       []docContentElement `json:"elements"`
 			}{
 				Elements: []docContentElement{
 					{
@@ -136,7 +137,8 @@ func TestFindTextInDoc(t *testing.T) {
 			StartIndex: 19,
 			EndIndex:   40,
 			Paragraph: &struct {
-				Elements []docContentElement `json:"elements"`
+				ParagraphStyle *docParagraphStyle `json:"paragraphStyle"`
+				Elements       []docContentElement `json:"elements"`
 			}{
 				Elements: []docContentElement{
 					{
@@ -153,7 +155,8 @@ func TestFindTextInDoc(t *testing.T) {
 			StartIndex: 40,
 			EndIndex:   52,
 			Paragraph: &struct {
-				Elements []docContentElement `json:"elements"`
+				ParagraphStyle *docParagraphStyle `json:"paragraphStyle"`
+				Elements       []docContentElement `json:"elements"`
 			}{
 				Elements: []docContentElement{
 					{
@@ -170,7 +173,8 @@ func TestFindTextInDoc(t *testing.T) {
 			StartIndex: 52,
 			EndIndex:   79,
 			Paragraph: &struct {
-				Elements []docContentElement `json:"elements"`
+				ParagraphStyle *docParagraphStyle `json:"paragraphStyle"`
+				Elements       []docContentElement `json:"elements"`
 			}{
 				Elements: []docContentElement{
 					{

@@ -1,6 +1,8 @@
 package server
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -125,4 +127,51 @@ func (s *Server) handleSaveResearchSettings(w http.ResponseWriter, r *http.Reque
 	_ = s.applyReload()
 
 	writeJSON(w, http.StatusOK, map[string]any{"status": "saved"})
+}
+
+func (s *Server) handleGDocsRollback(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var body struct {
+		DocumentID string `json:"document_id"`
+	}
+	_ = decodeBody(r, &body)
+
+	targetID := strings.TrimSpace(body.DocumentID)
+	if targetID == "" {
+		cfg := s.config()
+		targetID = strings.TrimSpace(cfg.Research.GDocs.DocumentID)
+		if targetID == "" && cfg.Research.GDocs.DocumentURL != "" {
+			targetID = extractGoogleDocID(cfg.Research.GDocs.DocumentURL)
+		}
+	}
+	if targetID == "" {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("document_id is required for rollback"))
+		return
+	}
+
+	tool, ok := tools.Default().Get("gdocs_rollback")
+	if !ok {
+		writeError(w, http.StatusInternalServerError, fmt.Errorf("gdocs_rollback tool is not registered"))
+		return
+	}
+
+	argsJSON, _ := json.Marshal(map[string]any{"document_id": targetID})
+	res := tool.Execute(ctx, tools.Input{
+		Args: argsJSON,
+		Deps: &tools.Deps{
+			Config: s.config(),
+			Store:  s.db,
+		},
+	})
+
+	if res.IsError {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("%s", res.Content))
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":  "success",
+		"message": res.Content,
+		"meta":    res.Meta,
+	})
 }

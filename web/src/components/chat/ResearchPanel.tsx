@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
+  ArrowCounterClockwise,
   ArrowSquareOut,
   ArrowsClockwise,
   BookOpen,
@@ -356,6 +357,23 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
   const [connectingGoogle, setConnectingGoogle] = useState(false)
   const [authUrl, setAuthUrl] = useState('')
   const [authUrlCopied, setAuthUrlCopied] = useState(false)
+  const [rollingBack, setRollingBack] = useState(false)
+  const [rollbackSuccess, setRollbackSuccess] = useState(false)
+
+  const handleRollback = async () => {
+    setRollingBack(true)
+    setRollbackSuccess(false)
+    try {
+      await post('/research/gdocs/rollback', { document_url: docUrl })
+      setRollbackSuccess(true)
+      setFrameKey((k) => k + 1)
+      setTimeout(() => setRollbackSuccess(false), 3000)
+    } catch {
+      // ignore
+    } finally {
+      setRollingBack(false)
+    }
+  }
 
   // Listen for Google OAuth completion and load connection status
   useEffect(() => {
@@ -593,6 +611,30 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
                 >
                   <ArrowsClockwise className="size-4" />
                 </Button>
+                {googleConnected ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleRollback}
+                    disabled={rollingBack}
+                    className={cn(
+                      'h-8 gap-1 px-2 text-xs transition-colors',
+                      rollbackSuccess ? 'border-emerald-500 text-emerald-500' : 'text-muted-foreground hover:text-foreground',
+                    )}
+                    title="Undo / Rollback perubahan terakhir yang dilakukan agen di Google Doc ini"
+                  >
+                    {rollingBack ? (
+                      <Spinner className="size-3.5 animate-spin" />
+                    ) : rollbackSuccess ? (
+                      <Check className="size-3.5 text-emerald-500" />
+                    ) : (
+                      <ArrowCounterClockwise className="size-3.5" />
+                    )}
+                    <span className="hidden sm:inline">
+                      {rollbackSuccess ? 'Berhasil Undo' : 'Undo'}
+                    </span>
+                  </Button>
+                ) : null}
                 {isSafeGoogleDocUrl(docUrl) ? (
                   <a
                     href={getCleanDocUrl(docUrl)}

@@ -259,13 +259,13 @@ var Toolsets = map[string][]string{
 	"coding": {
 		"read_file", "read_document", "write_file", "edit_file", "list_files", "glob", "grep",
 		"terminal", "process", "todo", "board", "project_info", "set_soul", "skill", "delegate_task", "task", "list_roles", "diagnostics", "http_request", "ask_user", "schedule",
-		"zotero_collections", "zotero_search", "zotero_cite", "gdocs_read", "gdocs_update",
+		"zotero_collections", "zotero_search", "zotero_cite", "gdocs_read", "gdocs_update", "gdocs_rollback",
 	},
 	"research": {
 		"read_file", "read_document", "web_search", "web_fetch", "http_request", "browser", "grep", "todo", "memory",
 		"session_search", "rag_search", "skill", "view_image", "report_finding", "add_intel", "methodology_status",
 		"delegate_task", "task", "list_roles",
-		"zotero_collections", "zotero_search", "zotero_cite", "gdocs_read", "gdocs_update",
+		"zotero_collections", "zotero_search", "zotero_cite", "gdocs_read", "gdocs_update", "gdocs_rollback",
 	},
 	"browser": {"browser", "web_search", "web_fetch", "http_request", "read_file", "write_file", "todo", "report_finding", "add_intel", "methodology_status"},
 	"security": {
