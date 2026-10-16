@@ -49,15 +49,15 @@ func (s *Server) handleGetResearchSettings(w http.ResponseWriter, r *http.Reques
 func (s *Server) handleSaveResearchSettings(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Zotero struct {
-			UserID string `json:"user_id"`
-			APIKey string `json:"api_key"`
+			UserID *string `json:"user_id"`
+			APIKey *string `json:"api_key"`
 		} `json:"zotero"`
 		GDocs struct {
-			Method            string `json:"method"`
-			WebhookURL        string `json:"webhook_url"`
-			DocumentURL       string `json:"document_url"`
-			OAuthClientID     string `json:"oauth_client_id"`
-			OAuthClientSecret string `json:"oauth_client_secret"`
+			Method            *string `json:"method"`
+			WebhookURL        *string `json:"webhook_url"`
+			DocumentURL       *string `json:"document_url"`
+			OAuthClientID     *string `json:"oauth_client_id"`
+			OAuthClientSecret *string `json:"oauth_client_secret"`
 		} `json:"gdocs"`
 	}
 
@@ -67,27 +67,43 @@ func (s *Server) handleSaveResearchSettings(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Security validation on all incoming inputs
-	if body.Zotero.UserID != "" || body.Zotero.APIKey != "" {
-		if err := tools.ValidateZoteroCreds(body.Zotero.UserID, body.Zotero.APIKey); err != nil {
+	if (body.Zotero.UserID != nil && *body.Zotero.UserID != "") || (body.Zotero.APIKey != nil && *body.Zotero.APIKey != "") {
+		uID := ""
+		if body.Zotero.UserID != nil {
+			uID = *body.Zotero.UserID
+		}
+		aKey := ""
+		if body.Zotero.APIKey != nil {
+			aKey = *body.Zotero.APIKey
+		}
+		if err := tools.ValidateZoteroCreds(uID, aKey); err != nil {
 			writeError(w, http.StatusBadRequest, err)
 			return
 		}
 	}
-	if body.GDocs.WebhookURL != "" {
-		if err := tools.ValidateGDocsWebhookURL(body.GDocs.WebhookURL); err != nil {
+	if body.GDocs.WebhookURL != nil && *body.GDocs.WebhookURL != "" {
+		if err := tools.ValidateGDocsWebhookURL(*body.GDocs.WebhookURL); err != nil {
 			writeError(w, http.StatusBadRequest, err)
 			return
 		}
 	}
-	if body.GDocs.DocumentURL != "" {
-		docID := extractGoogleDocID(body.GDocs.DocumentURL)
+	if body.GDocs.DocumentURL != nil && *body.GDocs.DocumentURL != "" {
+		docID := extractGoogleDocID(*body.GDocs.DocumentURL)
 		if err := tools.ValidateGDocsDocID(docID); err != nil {
 			writeError(w, http.StatusBadRequest, err)
 			return
 		}
 	}
-	if body.GDocs.OAuthClientID != "" || body.GDocs.OAuthClientSecret != "" {
-		if err := tools.ValidateGoogleOAuthCreds(body.GDocs.OAuthClientID, body.GDocs.OAuthClientSecret); err != nil {
+	if (body.GDocs.OAuthClientID != nil && *body.GDocs.OAuthClientID != "") || (body.GDocs.OAuthClientSecret != nil && *body.GDocs.OAuthClientSecret != "") {
+		cID := ""
+		if body.GDocs.OAuthClientID != nil {
+			cID = *body.GDocs.OAuthClientID
+		}
+		cSec := ""
+		if body.GDocs.OAuthClientSecret != nil {
+			cSec = *body.GDocs.OAuthClientSecret
+		}
+		if err := tools.ValidateGoogleOAuthCreds(cID, cSec); err != nil {
 			writeError(w, http.StatusBadRequest, err)
 			return
 		}
@@ -99,27 +115,32 @@ func (s *Server) handleSaveResearchSettings(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if body.Zotero.UserID != "" {
-		cfg.Research.Zotero.UserID = body.Zotero.UserID
+	if body.Zotero.UserID != nil {
+		cfg.Research.Zotero.UserID = *body.Zotero.UserID
 	}
-	if body.Zotero.APIKey != "" {
-		cfg.Research.Zotero.APIKey = body.Zotero.APIKey
+	if body.Zotero.APIKey != nil {
+		cfg.Research.Zotero.APIKey = *body.Zotero.APIKey
 	}
-	if body.GDocs.Method != "" {
-		cfg.Research.GDocs.Method = body.GDocs.Method
+	if body.GDocs.Method != nil {
+		cfg.Research.GDocs.Method = *body.GDocs.Method
 	}
-	if body.GDocs.WebhookURL != "" {
-		cfg.Research.GDocs.WebhookURL = body.GDocs.WebhookURL
+	if body.GDocs.WebhookURL != nil {
+		cfg.Research.GDocs.WebhookURL = *body.GDocs.WebhookURL
 	}
-	if body.GDocs.DocumentURL != "" {
-		cfg.Research.GDocs.DocumentURL = body.GDocs.DocumentURL
-		cfg.Research.GDocs.DocumentID = extractGoogleDocID(body.GDocs.DocumentURL)
+	if body.GDocs.DocumentURL != nil {
+		cfg.Research.GDocs.DocumentURL = *body.GDocs.DocumentURL
+		if *body.GDocs.DocumentURL != "" {
+			cfg.Research.GDocs.DocumentID = extractGoogleDocID(*body.GDocs.DocumentURL)
+		} else {
+			cfg.Research.GDocs.DocumentID = ""
+			_ = s.db.SetKV(r.Context(), "research:gdocs:last_exported_url", "")
+		}
 	}
-	if body.GDocs.OAuthClientID != "" {
-		cfg.Research.GDocs.OAuthClientID = body.GDocs.OAuthClientID
+	if body.GDocs.OAuthClientID != nil {
+		cfg.Research.GDocs.OAuthClientID = *body.GDocs.OAuthClientID
 	}
-	if body.GDocs.OAuthClientSecret != "" {
-		cfg.Research.GDocs.OAuthClientSecret = body.GDocs.OAuthClientSecret
+	if body.GDocs.OAuthClientSecret != nil {
+		cfg.Research.GDocs.OAuthClientSecret = *body.GDocs.OAuthClientSecret
 	}
 
 	if err := config.Save(cfg); err != nil {

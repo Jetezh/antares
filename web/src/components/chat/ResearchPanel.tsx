@@ -526,7 +526,7 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
         }
       })
       .catch(() => {})
-  }, [docUrl])
+  }, [])
 
   const handleLoadDoc = (urlVal?: string) => {
     const val = (urlVal !== undefined ? urlVal : docUrl).trim()

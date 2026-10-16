@@ -34,6 +34,7 @@ export function Markdown({ content, className }: { content: string; className?: 
 
 type Block =
   | { type: 'code'; code: string; lang: string }
+  | { type: 'svg'; svg: string }
   | { type: 'heading'; level: number; text: string }
   | { type: 'list'; ordered: boolean; items: string[] }
   | { type: 'quote'; text: string }
@@ -67,6 +68,24 @@ function parseBlocks(src: string): Block[] {
 
     if (!line.trim()) {
       i++
+      continue
+    }
+
+    // Standalone SVG block: <svg ...> ... </svg>
+    if (/^\s*<svg[\s>]/.test(line)) {
+      const svgLines: string[] = [line]
+      if (!line.includes('</svg>')) {
+        i++
+        while (i < lines.length && !lines[i].includes('</svg>')) {
+          svgLines.push(lines[i])
+          i++
+        }
+        if (i < lines.length) {
+          svgLines.push(lines[i])
+        }
+      }
+      i++
+      blocks.push({ type: 'svg', svg: svgLines.join('\n') })
       continue
     }
 
@@ -223,6 +242,13 @@ function RichBlock({ block }: { block: Block }) {
             </li>
           ))}
         </ul>
+      )
+    case 'svg':
+      return (
+        <div
+          className="my-3 flex justify-center overflow-x-auto rounded-[var(--radius-md)] border border-border bg-card/40 p-3"
+          dangerouslySetInnerHTML={{ __html: block.svg }}
+        />
       )
     case 'quote':
       return (
@@ -402,6 +428,9 @@ function Inline({ text }: { text: string }) {
 function CodeBlock({ code, lang }: { code: string; lang: string }) {
   const { t } = useI18n()
   const [copied, setCopied] = useState(false)
+  const isSvg = lang === 'svg' || (code.trim().startsWith('<svg') && code.includes('</svg>'))
+  const [showPreview, setShowPreview] = useState(isSvg)
+
   const copy = async () => {
     if (await copyText(code)) {
       setCopied(true)
@@ -411,9 +440,20 @@ function CodeBlock({ code, lang }: { code: string; lang: string }) {
   return (
     <div className="group relative overflow-hidden rounded-[var(--radius-lg)] border border-border bg-card">
       <div className="flex items-center justify-between border-b border-border px-3 py-1.5">
-        <span className="font-mono text-[10px] lowercase tracking-[0.04em] text-dim">
-          {lang || t('chat.codeText')}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-[10px] lowercase tracking-[0.04em] text-dim">
+            {lang || t('chat.codeText')}
+          </span>
+          {isSvg ? (
+            <button
+              type="button"
+              onClick={() => setShowPreview(!showPreview)}
+              className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-foreground hover:bg-muted/80"
+            >
+              {showPreview ? 'Lihat Kode' : 'Lihat Diagram'}
+            </button>
+          ) : null}
+        </div>
         <button
           onClick={copy}
           className="text-muted-foreground transition-colors hover:text-foreground"
@@ -422,9 +462,16 @@ function CodeBlock({ code, lang }: { code: string; lang: string }) {
           {copied ? <Check className="size-3.5 text-[var(--success)]" /> : <Copy className="size-3.5" />}
         </button>
       </div>
-      <pre className="overflow-x-auto p-3">
-        <code className="font-mono text-xs leading-relaxed">{code}</code>
-      </pre>
+      {isSvg && showPreview ? (
+        <div
+          className="flex justify-center overflow-x-auto p-4"
+          dangerouslySetInnerHTML={{ __html: code }}
+        />
+      ) : (
+        <pre className="overflow-x-auto p-3">
+          <code className="font-mono text-xs leading-relaxed">{code}</code>
+        </pre>
+      )}
     </div>
   )
 }
