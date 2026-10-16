@@ -98,16 +98,27 @@ function parseBlocks(src: string): Block[] {
       const closeTag = `</${tagName}>`
       if (!line.includes(closeTag)) {
         i++
-        while (i < lines.length && !lines[i].includes(closeTag)) {
+        while (
+          i < lines.length &&
+          lines[i].trim() &&
+          !lines[i].includes(closeTag) &&
+          !/^\s*(```|#{1,6}\s|\||!\[|<svg)/.test(lines[i])
+        ) {
           htmlLines.push(lines[i])
           i++
         }
-        if (i < lines.length) {
+        if (i < lines.length && lines[i].includes(closeTag)) {
           htmlLines.push(lines[i])
+          i++
         }
+      } else {
+        i++
       }
-      i++
-      blocks.push({ type: 'html', html: htmlLines.join('\n') })
+      let htmlStr = htmlLines.join('\n')
+      if (closeTag && !htmlStr.includes(closeTag)) {
+        htmlStr += closeTag
+      }
+      blocks.push({ type: 'html', html: htmlStr })
       continue
     }
 
@@ -170,11 +181,17 @@ function parseBlocks(src: string): Block[] {
     }
 
     const para: string[] = []
-    while (i < lines.length && lines[i].trim() && !/^\s*(```|#{1,6}\s|>|[-*+]\s|\d+[.)]\s|!\[)/.test(lines[i])) {
+    while (
+      i < lines.length &&
+      lines[i].trim() &&
+      !/^\s*(```|#{1,6}\s|>|[-*+]\s|\d+[.)]\s|!\[|<svg|<(p|div|center|table|span|b|i|strong|em)|\|)/.test(lines[i])
+    ) {
       para.push(lines[i])
       i++
     }
-    blocks.push({ type: 'paragraph', text: para.join('\n') })
+    if (para.length > 0) {
+      blocks.push({ type: 'paragraph', text: para.join('\n') })
+    }
   }
 
   return blocks
@@ -295,12 +312,12 @@ function RichBlock({ block }: { block: Block }) {
       )
     case 'table':
       return (
-        <div className="my-3 overflow-x-auto">
-          <table className="w-full border-collapse border border-foreground/40 text-xs">
+        <div className="my-4 overflow-x-auto">
+          <table className="w-full border-collapse border border-slate-700/60 text-xs text-foreground bg-background">
             <thead>
-              <tr className="border-b border-foreground/40 bg-muted/40">
+              <tr className="border-b border-slate-700/60 bg-muted/50">
                 {block.header.map((h, i) => (
-                  <th key={i} className="border border-foreground/40 px-3 py-2 text-center font-bold text-foreground">
+                  <th key={i} className="border border-slate-700/60 px-3 py-2 text-center font-bold text-foreground">
                     <Inline text={h} />
                   </th>
                 ))}
@@ -308,9 +325,9 @@ function RichBlock({ block }: { block: Block }) {
             </thead>
             <tbody>
               {block.rows.map((row, r) => (
-                <tr key={r} className="border-b border-foreground/20 hover:bg-muted/10">
+                <tr key={r} className="border-b border-slate-700/40 hover:bg-muted/10">
                   {row.map((c, i) => (
-                    <td key={i} className="border border-foreground/40 px-3 py-2 align-middle text-foreground">
+                    <td key={i} className="border border-slate-700/60 px-3 py-2 align-middle text-foreground">
                       <Inline text={c} />
                     </td>
                   ))}
@@ -320,12 +337,20 @@ function RichBlock({ block }: { block: Block }) {
           </table>
         </div>
       )
-    case 'paragraph':
+    case 'paragraph': {
+      const trimmed = block.text.trim()
+      const isCaption = /^\*?(Gambar|Figure|Tabel|Table)\s+\d+[\d.]*[:\s]/.test(trimmed)
       return (
-        <p className="whitespace-pre-wrap break-words">
+        <p
+          className={cn(
+            'whitespace-pre-wrap break-words leading-relaxed my-2',
+            isCaption && 'text-center font-medium italic text-xs text-foreground/80 my-2',
+          )}
+        >
           <Inline text={block.text} />
         </p>
       )
+    }
     default:
       return null
   }
