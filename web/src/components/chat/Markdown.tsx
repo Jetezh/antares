@@ -35,6 +35,7 @@ export function Markdown({ content, className }: { content: string; className?: 
 type Block =
   | { type: 'code'; code: string; lang: string }
   | { type: 'svg'; svg: string }
+  | { type: 'html'; html: string }
   | { type: 'heading'; level: number; text: string }
   | { type: 'list'; ordered: boolean; items: string[] }
   | { type: 'quote'; text: string }
@@ -86,6 +87,27 @@ function parseBlocks(src: string): Block[] {
       }
       i++
       blocks.push({ type: 'svg', svg: svgLines.join('\n') })
+      continue
+    }
+
+    // Standalone HTML block: <p ...> ... </p>, <div ...> ... </div>, etc.
+    if (/^\s*<(p|div|center|table|span|b|i|strong|em)[\s>]/.test(line)) {
+      const htmlLines: string[] = [line]
+      const tagMatch = /^\s*<(\w+)/.exec(line)
+      const tagName = tagMatch ? tagMatch[1] : ''
+      const closeTag = `</${tagName}>`
+      if (!line.includes(closeTag)) {
+        i++
+        while (i < lines.length && !lines[i].includes(closeTag)) {
+          htmlLines.push(lines[i])
+          i++
+        }
+        if (i < lines.length) {
+          htmlLines.push(lines[i])
+        }
+      }
+      i++
+      blocks.push({ type: 'html', html: htmlLines.join('\n') })
       continue
     }
 
@@ -250,6 +272,13 @@ function RichBlock({ block }: { block: Block }) {
           dangerouslySetInnerHTML={{ __html: block.svg }}
         />
       )
+    case 'html':
+      return (
+        <div
+          className="my-2"
+          dangerouslySetInnerHTML={{ __html: block.html }}
+        />
+      )
     case 'quote':
       return (
         <blockquote className="border-l-2 border-foreground/40 pl-3 text-muted-foreground">
@@ -266,12 +295,12 @@ function RichBlock({ block }: { block: Block }) {
       )
     case 'table':
       return (
-        <div className="overflow-x-auto rounded-[var(--radius-lg)] border border-border bg-card">
-          <table className="w-full text-xs">
+        <div className="my-3 overflow-x-auto">
+          <table className="w-full border-collapse border border-foreground/40 text-xs">
             <thead>
-              <tr>
+              <tr className="border-b border-foreground/40 bg-muted/40">
                 {block.header.map((h, i) => (
-                  <th key={i} className="border-b border-border px-3 py-2 text-left font-mono text-[11px] font-normal lowercase tracking-[0.04em] whitespace-nowrap text-dim">
+                  <th key={i} className="border border-foreground/40 px-3 py-2 text-center font-bold text-foreground">
                     <Inline text={h} />
                   </th>
                 ))}
@@ -279,9 +308,9 @@ function RichBlock({ block }: { block: Block }) {
             </thead>
             <tbody>
               {block.rows.map((row, r) => (
-                <tr key={r} className="border-t border-border first:border-t-0 hover:bg-raised">
+                <tr key={r} className="border-b border-foreground/20 hover:bg-muted/10">
                   {row.map((c, i) => (
-                    <td key={i} className="px-3 py-2 align-top">
+                    <td key={i} className="border border-foreground/40 px-3 py-2 align-middle text-foreground">
                       <Inline text={c} />
                     </td>
                   ))}

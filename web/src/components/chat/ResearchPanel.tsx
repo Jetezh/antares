@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ArrowCounterClockwise,
   ArrowSquareOut,
@@ -314,6 +314,35 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
   const [exportingGdocs, setExportingGdocs] = useState(false)
   const [exportedDocUrl, setExportedDocUrl] = useState('')
   const [exportError, setExportError] = useState('')
+  const [draftSearchOpen, setDraftSearchOpen] = useState(false)
+  const [draftSearchQuery, setDraftSearchQuery] = useState('')
+
+  // Shortcut Ctrl+F in draft tab
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f' && tab === 'draft') {
+        e.preventDefault()
+        setDraftSearchOpen(true)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [tab])
+
+  const highlightedDraftContent = useMemo(() => {
+    const q = draftSearchQuery.trim()
+    if (!q) return draftContent
+    try {
+      const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const re = new RegExp(`(?<!<[^>]*)(${escaped})(?![^<]*>)`, 'gi')
+      return draftContent.replace(
+        re,
+        '<mark style="background-color: #fef08a; color: #854d0e; padding: 1px 3px; border-radius: 2px;">$1</mark>',
+      )
+    } catch {
+      return draftContent
+    }
+  }, [draftContent, draftSearchQuery])
 
   const handleDraftChange = (val: string) => {
     setDraftContent(val)
@@ -785,8 +814,58 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
                   <span className="hidden sm:inline">Minta Agen Tulis</span>
                 </Button>
               ) : null}
+
+              <Button
+                size="icon-sm"
+                variant={draftSearchOpen ? 'default' : 'outline'}
+                className="h-8 w-8 shrink-0"
+                onClick={() => setDraftSearchOpen(!draftSearchOpen)}
+                title="Cari kata di draf (Ctrl+F)"
+              >
+                <MagnifyingGlass className="size-3.5" />
+              </Button>
             </div>
           </div>
+
+          {/* Search Sub-Bar */}
+          {draftSearchOpen ? (
+            <div className="flex items-center gap-2 border-b border-border bg-card/60 px-3 py-1.5 text-xs">
+              <MagnifyingGlass className="size-3.5 shrink-0 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Cari kata di draf naskah..."
+                value={draftSearchQuery}
+                onChange={(e) => setDraftSearchQuery(e.target.value)}
+                className="h-7 flex-1 text-xs"
+                autoFocus
+              />
+              {draftSearchQuery ? (
+                <span className="font-mono text-[11px] text-muted-foreground whitespace-nowrap">
+                  {(() => {
+                    try {
+                      const escaped = draftSearchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                      const matches = draftContent.match(new RegExp(escaped, 'gi'))
+                      return `${matches ? matches.length : 0} hasil`
+                    } catch {
+                      return '0 hasil'
+                    }
+                  })()}
+                </span>
+              ) : null}
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                onClick={() => {
+                  setDraftSearchQuery('')
+                  setDraftSearchOpen(false)
+                }}
+                className="size-7"
+                title="Tutup pencarian"
+              >
+                <X className="size-3.5" />
+              </Button>
+            </div>
+          ) : null}
 
           {/* Export Success Banner */}
           {exportedDocUrl ? (
@@ -837,7 +916,7 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
               />
             ) : (
               <div className="mx-auto min-h-[850px] max-w-[850px] rounded-sm bg-white p-8 md:p-12 text-[#111827] shadow-xl ring-1 ring-black/5 font-serif text-[12pt] leading-relaxed text-justify">
-                <Markdown content={draftContent} className="space-y-4" />
+                <Markdown content={highlightedDraftContent} className="space-y-4" />
               </div>
             )}
           </div>
