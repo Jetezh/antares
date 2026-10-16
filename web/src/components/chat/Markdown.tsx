@@ -339,14 +339,24 @@ function RichBlock({ block }: { block: Block }) {
       )
     case 'paragraph': {
       const trimmed = block.text.trim()
-      const isCaption = /^\*?(Gambar|Figure|Tabel|Table)\s+\d+[\d.]*[:\s]/.test(trimmed)
+      const isFigure = /^\*?(Gambar|Figure)\s+\d+[\d.]*[:\s]/.test(trimmed)
+      const isTable = /^\*?(Tabel|Table)\s+\d+[\d.]*[:\s]/.test(trimmed)
+      if (isFigure) {
+        return (
+          <p className="my-1.5 text-center font-serif text-[11pt] font-normal italic leading-snug text-gray-700">
+            <Inline text={block.text} />
+          </p>
+        )
+      }
+      if (isTable) {
+        return (
+          <p className="mt-3 mb-1 text-center font-serif text-[11pt] font-normal italic leading-snug text-gray-800">
+            <Inline text={block.text} />
+          </p>
+        )
+      }
       return (
-        <p
-          className={cn(
-            'whitespace-pre-wrap break-words leading-relaxed my-2',
-            isCaption && 'text-center font-medium italic text-xs text-foreground/80 my-2',
-          )}
-        >
+        <p className="my-1 whitespace-pre-wrap break-words font-serif text-[12pt] leading-[1.15] text-gray-950">
           <Inline text={block.text} />
         </p>
       )

@@ -416,6 +416,7 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
       }
 
       // 1. Process SVG blocks: replace with rendered PNG <img> for Google Docs compatibility
+      // Set width="500" explicitly on <img> so Google Docs imports it at standard column width (not oversized)
       let processedContent = draftContent
       const svgMatches = processedContent.match(/<svg[\s\S]*?<\/svg>/gi) || []
       for (const svgCode of svgMatches) {
@@ -423,7 +424,7 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
         if (pngDataUrl) {
           processedContent = processedContent.replace(
             svgCode,
-            `<p style="text-align: center; margin: 16px 0;"><img src="${pngDataUrl}" style="max-width: 600px; height: auto;" /></p>`,
+            `<p style="text-align: center; margin-top: 10px; margin-bottom: 2px;"><img src="${pngDataUrl}" width="500" style="max-width: 500px; width: 500px; height: auto;" /></p>`,
           )
         }
       }
@@ -440,13 +441,13 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
           tableRows = []
           return
         }
-        bodyHtml += '<table border="1" style="border-collapse: collapse; width: 100%; margin: 14px 0; font-family: \'Times New Roman\', serif; font-size: 11pt;">\n'
+        bodyHtml += '<table border="1" style="border-collapse: collapse; width: 100%; margin-top: 4px; margin-bottom: 12px; font-family: \'Times New Roman\', serif; font-size: 11pt;">\n'
         tableRows.forEach((row, rIdx) => {
           bodyHtml += '  <tr>\n'
           row.forEach((cell) => {
             const tag = rIdx === 0 ? 'th' : 'td'
             const bg = rIdx === 0 ? 'background-color: #f1f5f9; font-weight: bold; text-align: center;' : 'text-align: left;'
-            bodyHtml += `    <${tag} style="border: 1px solid #334155; padding: 6px 10px; ${bg}">${cell.trim()}</${tag}>\n`
+            bodyHtml += `    <${tag} style="border: 1px solid #1e293b; padding: 5px 8px; font-size: 11pt; line-height: 1.15; ${bg}">${cell.trim()}</${tag}>\n`
           })
           bodyHtml += '  </tr>\n'
         })
@@ -478,23 +479,26 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
 
         // Headings
         if (line.startsWith('# ')) {
-          bodyHtml += `<h1 style="font-size: 16pt; font-weight: bold; text-align: center; margin-top: 20px; margin-bottom: 10px;">${line.slice(2).trim()}</h1>\n`
+          bodyHtml += `<h1 style="font-size: 16pt; font-weight: bold; text-align: center; margin-top: 14pt; margin-bottom: 6pt; line-height: 1.15;">${line.slice(2).trim()}</h1>\n`
         } else if (line.startsWith('## ')) {
-          bodyHtml += `<h2 style="font-size: 14pt; font-weight: bold; margin-top: 18px; margin-bottom: 8px;">${line.slice(3).trim()}</h2>\n`
+          bodyHtml += `<h2 style="font-size: 14pt; font-weight: bold; margin-top: 12pt; margin-bottom: 4pt; line-height: 1.15;">${line.slice(3).trim()}</h2>\n`
         } else if (line.startsWith('### ')) {
-          bodyHtml += `<h3 style="font-size: 12pt; font-weight: bold; font-style: italic; margin-top: 14px; margin-bottom: 6px;">${line.slice(4).trim()}</h3>\n`
+          bodyHtml += `<h3 style="font-size: 12pt; font-weight: bold; font-style: italic; margin-top: 10pt; margin-bottom: 2pt; line-height: 1.15;">${line.slice(4).trim()}</h3>\n`
         } else if (line.startsWith('<p') || line.startsWith('<img') || line.startsWith('<div')) {
           bodyHtml += line + '\n'
         } else {
           // Detect caption lines (*Gambar ...* or *Tabel ...*)
-          const isCaption = /^\*?(Gambar|Figure|Tabel|Table)\s+\d+[\d.]*[:\s]/.test(line)
+          const isFigure = /^\*?(Gambar|Figure)\s+\d+[\d.]*[:\s]/.test(line)
+          const isTable = /^\*?(Tabel|Table)\s+\d+[\d.]*[:\s]/.test(line)
           let formatted = line
             .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
             .replace(/\*(.*?)\*/g, '<i>$1</i>')
-          if (isCaption) {
-            bodyHtml += `<p style="text-align: center; font-size: 10pt; font-style: italic; margin: 6px 0 14px 0; color: #334155;">${formatted}</p>\n`
+          if (isFigure) {
+            bodyHtml += `<p style="text-align: center; font-size: 11pt; font-style: italic; font-weight: normal; margin-top: 4pt; margin-bottom: 8pt; line-height: 1.15; color: #1e293b;">${formatted}</p>\n`
+          } else if (isTable) {
+            bodyHtml += `<p style="text-align: center; font-size: 11pt; font-style: italic; font-weight: normal; margin-top: 8pt; margin-bottom: 2pt; line-height: 1.15; color: #1e293b;">${formatted}</p>\n`
           } else {
-            bodyHtml += `<p style="margin-bottom: 10px; text-indent: 28pt; line-height: 1.5;">${formatted}</p>\n`
+            bodyHtml += `<p style="margin-top: 0pt; margin-bottom: 0pt; text-indent: 1cm; line-height: 1.15; text-align: justify; font-size: 12pt;">${formatted}</p>\n`
           }
         }
       }
@@ -506,18 +510,17 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
 <meta charset="utf-8">
 <title>${draftTitle}</title>
 <style>
-body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.5; text-align: justify; color: #000; margin: 40px; }
-h1 { font-size: 16pt; font-weight: bold; text-align: center; margin-top: 20px; margin-bottom: 10px; }
-h2 { font-size: 14pt; font-weight: bold; margin-top: 18px; margin-bottom: 8px; }
-h3 { font-size: 12pt; font-weight: bold; font-style: italic; margin-top: 14px; margin-bottom: 6px; }
-p { margin-bottom: 10px; text-indent: 28pt; line-height: 1.5; }
-table { border-collapse: collapse; width: 100%; margin: 14px 0; font-family: 'Times New Roman', serif; font-size: 11pt; }
-th, td { border: 1px solid #334155; padding: 6px 10px; }
+body, p, div { font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.15; text-align: justify; color: #000; margin-top: 0pt; margin-bottom: 0pt; }
+h1 { font-size: 16pt; font-weight: bold; text-align: center; margin-top: 14pt; margin-bottom: 6pt; line-height: 1.15; }
+h2 { font-size: 14pt; font-weight: bold; margin-top: 12pt; margin-bottom: 4pt; line-height: 1.15; }
+h3 { font-size: 12pt; font-weight: bold; font-style: italic; margin-top: 10pt; margin-bottom: 2pt; line-height: 1.15; }
+table { border-collapse: collapse; width: 100%; margin-top: 4pt; margin-bottom: 12pt; font-family: 'Times New Roman', serif; font-size: 11pt; }
+th, td { border: 1px solid #1e293b; padding: 5px 8px; line-height: 1.15; }
 th { background-color: #f1f5f9; font-weight: bold; text-align: center; }
-img { max-width: 100%; height: auto; }
+img { max-width: 500px; height: auto; display: block; margin: 0 auto; }
 </style>
 </head>
-<body>
+<body style="margin: 40px;">
 ${bodyHtml}
 </body>
 </html>`
@@ -1074,8 +1077,8 @@ ${bodyHtml}
                 placeholder="Tuliskan draf dokumen dalam format Markdown..."
               />
             ) : (
-              <div className="mx-auto min-h-[850px] max-w-[850px] rounded-sm bg-white p-8 md:p-12 text-[#111827] shadow-xl ring-1 ring-black/5 font-serif text-[12pt] leading-relaxed text-justify">
-                <Markdown content={highlightedDraftContent} className="space-y-4" />
+              <div className="mx-auto min-h-[850px] max-w-[850px] rounded-sm bg-white p-8 md:p-12 text-[#111827] shadow-xl ring-1 ring-black/5 font-serif text-[12pt] leading-[1.15] text-justify">
+                <Markdown content={highlightedDraftContent} className="space-y-2 text-gray-950 font-serif" />
               </div>
             )}
           </div>
