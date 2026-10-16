@@ -81,6 +81,7 @@ func init() {
 		// Academic & Research integration tools: Zotero & Google Docs.
 		zoteroCollectionsTool{}, zoteroSearchTool{}, zoteroCiteTool{},
 		gdocsReadTool{}, gdocsUpdateTool{}, gdocsRollbackTool{},
+		draftReadTool{}, draftUpdateTool{},
 	} {
 		globalRegistry.Register(t)
 	}

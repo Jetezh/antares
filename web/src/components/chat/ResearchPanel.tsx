@@ -319,6 +319,7 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
     setDraftContent(val)
     try {
       localStorage.setItem('antares:draft-md', val)
+      post('/research/draft', { title: draftTitle, content: val }).catch(() => {})
     } catch {}
   }
 
@@ -542,6 +543,42 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
       // ignore
     }
   }
+
+  const handleClearDoc = async () => {
+    setDocUrl('')
+    setPreviewActive(false)
+    try {
+      localStorage.removeItem('antares:gdocs-active-url')
+      await post('/research/settings', {
+        gdocs: {
+          document_url: '',
+          document_id: '',
+        },
+      })
+    } catch {
+      // ignore
+    }
+  }
+
+  // Sync live draft from backend on mount and turn completions
+  useEffect(() => {
+    get<{ title: string; content: string }>('/research/draft')
+      .then((res) => {
+        if (res.content) {
+          setDraftContent(res.content)
+          try {
+            localStorage.setItem('antares:draft-md', res.content)
+          } catch {}
+        }
+        if (res.title) {
+          setDraftTitle(res.title)
+          try {
+            localStorage.setItem('antares:draft-title', res.title)
+          } catch {}
+        }
+      })
+      .catch(() => {})
+  }, [refreshKey])
 
   const handleSaveSettings = async (closeModal = true) => {
     setSavingSettings(true)
@@ -811,20 +848,32 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
       {tab === 'gdocs' && (
         <div className="flex flex-1 flex-col overflow-hidden">
           <div className="flex items-center gap-2 border-b border-border bg-background/50 p-3">
-            <Input
-              type="text"
-              placeholder={t('research.docPlaceholder')}
-              value={docUrl}
-              onChange={(e) => {
-                setDocUrl(e.target.value)
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  handleLoadDoc()
-                }
-              }}
-              className="h-8 flex-1 text-xs"
-            />
+            <div className="relative flex flex-1 items-center">
+              <Input
+                type="text"
+                placeholder={t('research.docPlaceholder')}
+                value={docUrl}
+                onChange={(e) => {
+                  setDocUrl(e.target.value)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleLoadDoc()
+                  }
+                }}
+                className="h-8 flex-1 pr-7 text-xs"
+              />
+              {docUrl ? (
+                <button
+                  type="button"
+                  onClick={handleClearDoc}
+                  className="absolute right-2 p-0.5 text-muted-foreground hover:text-foreground"
+                  title="Hapus / Bersihkan URL Dokumen"
+                >
+                  <X className="size-3.5" />
+                </button>
+              ) : null}
+            </div>
             <Button
               size="sm"
               variant="outline"

@@ -142,8 +142,10 @@ You are running as a worker for another agent. Nobody is watching your stream.
 		}
 		b.WriteString("\n## Academic Writing & Journal Standards (LaTeX & Google Docs)\n\n")
 		b.WriteString("- Document Drafting & Google Drive Export (Draft-First Pattern):\n")
-		b.WriteString("  * When drafting or revising a chapter/report (e.g. Bab 3), format the output in clean, structured Markdown with headings (`#`, `##`), academic tables (`| Col 1 | Col 2 |`), and SVG/diagram flowcharts.\n")
-		b.WriteString("  * The user can inspect and edit this draft in the 'Draf Naskah' split view tab, and export it into a native Google Doc with one click via Google Drive!\n")
+		b.WriteString("  * Whenever asked to write, draft, or revise a chapter (e.g. Bab 3 Bilik), report, or academic essay, ALWAYS use the `draft_update` tool! This tool directly writes to the live 'Draf Naskah' tab in the user's Split View.\n")
+		b.WriteString("  * Format the draft in clean, structured Markdown with headings (`#`, `##`), academic tables (`| Col 1 | Col 2 |`), and inline SVG flowcharts/diagrams.\n")
+		b.WriteString("  * The user can inspect the live rendered draft in their Split View, make manual adjustments, and click 'Ekspor ke Google Docs' to generate a native Google Doc on Google Drive with one click!\n")
+		b.WriteString("  * Use `draft_read` to inspect the current draft content before making modular revisions.\n")
 		b.WriteString("- Standard Typography: Use formal academic style (Times New Roman, 12pt, Justified alignment).\n")
 		b.WriteString("- Figures & Flowcharts:\n")
 		b.WriteString("  * Always place an explicit figure placeholder indicating what illustration or diagram to insert and where.\n")

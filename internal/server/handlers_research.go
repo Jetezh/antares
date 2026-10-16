@@ -280,3 +280,33 @@ func (s *Server) handleGDocsExport(w http.ResponseWriter, r *http.Request) {
 		"title":        driveResp.Name,
 	})
 }
+
+func (s *Server) handleGetDraft(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	title, _ := s.db.GetKV(ctx, "research:draft:title")
+	content, _ := s.db.GetKV(ctx, "research:draft:content")
+	if title == "" {
+		title = "Bab 3 - Perancangan Sistem Bilik"
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"title":   title,
+		"content": content,
+	})
+}
+
+func (s *Server) handleSaveDraft(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var body struct {
+		Title   string `json:"title"`
+		Content string `json:"content"`
+	}
+	if err := decodeBody(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	if body.Title != "" {
+		_ = s.db.SetKV(ctx, "research:draft:title", body.Title)
+	}
+	_ = s.db.SetKV(ctx, "research:draft:content", body.Content)
+	writeJSON(w, http.StatusOK, map[string]any{"status": "saved"})
+}
