@@ -484,8 +484,15 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
           bodyHtml += `<h2 style="font-size: 14pt; font-weight: bold; margin-top: 12pt; margin-bottom: 4pt; line-height: 1.15;">${line.slice(3).trim()}</h2>\n`
         } else if (line.startsWith('### ')) {
           bodyHtml += `<h3 style="font-size: 12pt; font-weight: bold; font-style: italic; margin-top: 10pt; margin-bottom: 2pt; line-height: 1.15;">${line.slice(4).trim()}</h3>\n`
-        } else if (line.startsWith('<p') || line.startsWith('<img') || line.startsWith('<div')) {
+        } else if (line.startsWith('<img') || line.startsWith('<div')) {
           bodyHtml += line + '\n'
+        } else if (line.startsWith('<p')) {
+          // If line starts with <p, ensure it has style="margin: 0; line-height: 1.15;"
+          let pLine = line
+          if (!pLine.includes('line-height')) {
+            pLine = pLine.replace(/<p\s+style="([^"]*)"/i, '<p style="margin: 0; line-height: 1.15; $1"')
+          }
+          bodyHtml += pLine + '\n'
         } else {
           // Detect caption lines (*Gambar ...* or *Tabel ...*)
           const isFigure = /^\*?(Gambar|Figure)\s+\d+[\d.]*[:\s]/.test(line)
