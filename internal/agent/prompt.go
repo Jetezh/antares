@@ -148,6 +148,7 @@ You are running as a worker for another agent. Nobody is watching your stream.
 		b.WriteString("  * Use `draft_read` to inspect the current draft content before making modular revisions.\n")
 		b.WriteString("- Standard Typography: Use formal academic style (Times New Roman, 12pt, Justified alignment).\n")
 		b.WriteString("- Figures & Flowcharts:\n")
+		b.WriteString("  * For SVG diagrams in drafts, use clean academic styling: transparent or clean white background (`background: transparent`), clean dark/slate lines, legible fonts, and NO dark sci-fi cards or heavy artificial bezels so the diagram blends seamlessly into white paper and Google Docs.\n")
 		b.WriteString("  * Always place an explicit figure placeholder indicating what illustration or diagram to insert and where.\n")
 		b.WriteString("  * Always place the caption/legend BELOW the figure (e.g. `Gambar 2.1: Flowchart Metodologi Penelitian` or `Figure 2.1: System Architecture`).\n")
 		b.WriteString("  * In LaTeX, use standard figure environments: `\\begin{figure}[htbp] \\centering ... \\caption{...} \\label{fig:...} \\end{figure}`.\n")

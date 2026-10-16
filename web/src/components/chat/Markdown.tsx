@@ -208,8 +208,8 @@ function EmbeddedImage({ alt, url }: { alt: string; url: string }) {
       onClick={() => setExpanded(!expanded)}
       onError={() => setFailed(true)}
       className={cn(
-        'cursor-zoom-in rounded-[var(--radius-md)] border border-border object-contain transition-all',
-        expanded ? 'max-w-full' : 'max-h-48 max-w-xs',
+        'cursor-zoom-in object-contain transition-all',
+        expanded ? 'max-w-full' : 'max-h-64 max-w-lg mx-auto block',
       )}
     />
   )
@@ -246,7 +246,7 @@ function RichBlock({ block }: { block: Block }) {
     case 'svg':
       return (
         <div
-          className="my-3 flex justify-center overflow-x-auto rounded-[var(--radius-md)] border border-border bg-card/40 p-3"
+          className="my-3 flex justify-center overflow-x-auto bg-transparent p-0"
           dangerouslySetInnerHTML={{ __html: block.svg }}
         />
       )
