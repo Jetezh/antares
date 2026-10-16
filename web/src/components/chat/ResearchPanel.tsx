@@ -3,9 +3,11 @@ import {
   ArrowCounterClockwise,
   ArrowSquareOut,
   ArrowsClockwise,
+  Article,
   BookOpen,
   Check,
   CheckCircle,
+  CloudArrowUp,
   Copy,
   FileCode,
   FileText,
@@ -36,6 +38,7 @@ import { copyText } from '@/lib/clipboard'
 import { useI18n } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 import { LatexPreview } from '@/components/chat/LatexPreview'
+import { Markdown } from '@/components/chat/Markdown'
 
 interface ResearchPanelProps {
   refreshKey?: number
@@ -252,11 +255,104 @@ const BIBTEX_TEMPLATE = `@article{setiawan2024,
 }
 `
 
+const DEFAULT_DRAFT_MD = `# BAB 3: PERANCANGAN SISTEM (BILIK)
+
+## 3.1 Gambaran Umum Sistem
+Sistem Bilik adalah platform manajemen kamar sewa dan properti berbasis web yang menghubungkan pemilik properti dan penyewa. Sistem dirancang menggunakan arsitektur modular yang terdiri dari frontend berbasis React dan backend API.
+
+## 3.2 Diagram Alir & Metodologi
+Berikut adalah alur proses transaksi dan pemesanan kamar pada sistem Bilik:
+
+\`\`\`
+┌────────────────┐       ┌──────────────────────┐       ┌────────────────────────┐
+│  Penyewa       │  ───> │  Sistem Bilik        │  ───> │  Pemilik Properti      │
+│  Pilih Kamar   │       │  Verifikasi & Invoice│       │  Konfirmasi Booking    │
+└────────────────┘       └──────────────────────┘       └────────────────────────┘
+\`\`\`
+
+*Gambar 3.1: Diagram Alir Pemesanan Kamar pada Sistem Bilik*
+
+## 3.3 Spesifikasi Komponen & Perancangan Tabel
+Spesifikasi modul sistem Bilik dirinci pada tabel berikut:
+
+| No | Modul Sistem | Teknologi | Fungsi Utama |
+| --- | --- | --- | --- |
+| 1 | Frontend Dashboard | React, Vite, Tailwind | Antarmuka interaktif pengguna & manajemen properti |
+| 2 | Backend Service | Go / Node.js REST API | Logika bisnis, otentikasi JWT, & manajemen data |
+| 3 | Database Storage | PostgreSQL / SQLite | Penyimpanan data relasional kamar & transaksi |
+| 4 | Payment Gateway | Midtrans / Xendit API | Pemrosesan pembayaran otomatis |
+
+*Tabel 3.1: Matriks Arsitektur dan Komponen Sistem Bilik*
+
+## 3.4 Analisis Kebutuhan Non-Fungsional
+1. **Keamanan**: Data transaksi dilindungi dengan enkripsi SSL dan otentikasi berbasis token.
+2. **Ketersediaan**: Sistem memiliki uptime target 99.9% dengan replikasi database berkala.
+`
+
 export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchPanelProps) {
   const { t } = useI18n()
-  const [tab, setTab] = useState<'gdocs' | 'latex' | 'zotero'>('gdocs')
+  const [tab, setTab] = useState<'draft' | 'gdocs' | 'latex' | 'zotero'>('draft')
   const [docViewMode, setDocViewMode] = useState<'edit' | 'preview'>('edit')
   const [frameKey, setFrameKey] = useState(0)
+
+  // Draft state (HTML / Markdown artifact)
+  const [draftTitle, setDraftTitle] = useState(() => {
+    try {
+      return localStorage.getItem('antares:draft-title') || 'Bab 3 - Perancangan Sistem Bilik'
+    } catch {
+      return 'Bab 3 - Perancangan Sistem Bilik'
+    }
+  })
+  const [draftContent, setDraftContent] = useState(() => {
+    try {
+      return localStorage.getItem('antares:draft-md') || DEFAULT_DRAFT_MD
+    } catch {
+      return DEFAULT_DRAFT_MD
+    }
+  })
+  const [draftViewMode, setDraftViewMode] = useState<'edit' | 'preview'>('preview')
+  const [exportingGdocs, setExportingGdocs] = useState(false)
+  const [exportedDocUrl, setExportedDocUrl] = useState('')
+  const [exportError, setExportError] = useState('')
+
+  const handleDraftChange = (val: string) => {
+    setDraftContent(val)
+    try {
+      localStorage.setItem('antares:draft-md', val)
+    } catch {}
+  }
+
+  const handleExportToGoogleDocs = async () => {
+    setExportingGdocs(true)
+    setExportError('')
+    setExportedDocUrl('')
+    try {
+      // Basic markdown-to-html conversion for semantic Google Docs import
+      let html = draftContent
+        .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+        .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+        .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+        .replace(/\*\*(.*)\*\*/gim, '<b>$1</b>')
+        .replace(/\*(.*)\*/gim, '<i>$1</i>')
+        .replace(/\n\n/gim, '<br/><br/>')
+
+      const res = await post<{ status: string; document_url: string; document_id: string }>(
+        '/research/gdocs/export',
+        {
+          title: draftTitle,
+          html: `<div style="font-family: 'Times New Roman', serif; font-size: 12pt; line-height: 1.5; text-align: justify;">${html}</div>`,
+        },
+      )
+      if (res.document_url) {
+        setExportedDocUrl(res.document_url)
+        setDocUrl(res.document_url)
+      }
+    } catch (err: any) {
+      setExportError(err?.message || 'Gagal mengekspor dokumen ke Google Docs')
+    } finally {
+      setExportingGdocs(false)
+    }
+  }
 
   // LaTeX state
   const [latexFile, setLatexFile] = useState<'main' | 'bib'>('main')
@@ -520,6 +616,15 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
       <div className="flex h-13 items-center justify-between border-b border-border px-4">
         <div className="flex items-center gap-2">
           <Button
+            variant={tab === 'draft' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setTab('draft')}
+            className="gap-1.5 text-xs"
+          >
+            <Article className="size-3.5" />
+            <span>{t('research.draft')}</span>
+          </Button>
+          <Button
             variant={tab === 'gdocs' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => setTab('gdocs')}
@@ -561,6 +666,146 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
           </Button>
         </div>
       </div>
+
+      {/* Tab 0: Document Draft (Artifact) */}
+      {tab === 'draft' && (
+        <div className="flex flex-1 flex-col overflow-hidden">
+          {/* Sub-bar: Title, Mode toggle, and Export button */}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-background/50 p-2.5">
+            <div className="flex flex-1 items-center gap-2 min-w-[200px]">
+              <Input
+                type="text"
+                placeholder={t('research.draftTitlePlaceholder')}
+                value={draftTitle}
+                onChange={(e) => {
+                  setDraftTitle(e.target.value)
+                  try {
+                    localStorage.setItem('antares:draft-title', e.target.value)
+                  } catch {}
+                }}
+                className="h-8 flex-1 text-xs font-medium"
+              />
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              {/* Mode Toggle: Edit vs Preview */}
+              <div className="flex items-center rounded-[var(--radius-md)] border border-border bg-card/60 p-0.5 text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => setDraftViewMode('edit')}
+                  className={cn(
+                    'px-2 py-0.5 rounded-[var(--radius-sm)] transition-colors',
+                    draftViewMode === 'edit'
+                      ? 'bg-primary text-primary-foreground font-medium'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {t('research.modeEdit')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDraftViewMode('preview')}
+                  className={cn(
+                    'px-2 py-0.5 rounded-[var(--radius-sm)] transition-colors',
+                    draftViewMode === 'preview'
+                      ? 'bg-primary text-primary-foreground font-medium'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {t('research.modePreview')}
+                </button>
+              </div>
+
+              {/* Action: Export to Google Docs */}
+              <Button
+                size="sm"
+                onClick={handleExportToGoogleDocs}
+                disabled={exportingGdocs || !googleConnected}
+                className="h-8 gap-1.5 bg-emerald-600 px-3 text-xs text-white hover:bg-emerald-700"
+                title={googleConnected ? t('research.exportGdocs') : 'Hubungkan akun Google di Pengaturan terlebih dahulu'}
+              >
+                {exportingGdocs ? (
+                  <Spinner className="size-3.5 animate-spin" />
+                ) : (
+                  <CloudArrowUp className="size-4" />
+                )}
+                <span>{exportingGdocs ? t('research.exportingGdocs') : t('research.exportGdocs')}</span>
+              </Button>
+
+              {onInsertToChat ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 gap-1 text-xs text-primary"
+                  onClick={() => {
+                    onInsertToChat(
+                      `Berikut adalah draf ${draftTitle}:\n\n\`\`\`markdown\n${draftContent}\n\`\`\`\n\nMohon bantu revisi/lengkapi naskah ini (tambahkan diagram/flowchart atau tabel jika relevan).`,
+                    )
+                  }}
+                  title="Minta Agen Menulis / Merevisi Draf Ini"
+                >
+                  <PencilSimple className="size-3.5" />
+                  <span className="hidden sm:inline">Minta Agen Tulis</span>
+                </Button>
+              ) : null}
+            </div>
+          </div>
+
+          {/* Export Success Banner */}
+          {exportedDocUrl ? (
+            <div className="flex items-center justify-between border-b border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-xs text-emerald-500">
+              <div className="flex items-center gap-2 font-medium">
+                <CheckCircle className="size-4 shrink-0" />
+                <span>{t('research.exportedGdocsSuccess')}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={exportedDocUrl}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="inline-flex items-center gap-1 rounded bg-emerald-600 px-2 py-0.5 text-[11px] font-medium text-white hover:bg-emerald-700"
+                >
+                  <span>{t('research.openExportedDoc')}</span>
+                  <ArrowSquareOut className="size-3" />
+                </a>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 text-[10px] text-muted-foreground"
+                  onClick={() => setTab('gdocs')}
+                >
+                  Lihat di Tab GDocs
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Export Error Banner */}
+          {exportError ? (
+            <div className="flex items-center gap-2 border-b border-destructive/30 bg-destructive/10 px-4 py-2 text-xs text-destructive">
+              <WarningCircle className="size-4 shrink-0" />
+              <span>{exportError}</span>
+            </div>
+          ) : null}
+
+          {/* Main Content Area */}
+          <div className="flex-1 overflow-auto bg-muted/20 p-4">
+            {draftViewMode === 'edit' ? (
+              <textarea
+                value={draftContent}
+                onChange={(e) => handleDraftChange(e.target.value)}
+                className="size-full resize-none rounded-[var(--radius-md)] border border-border bg-background/80 p-4 font-mono text-xs leading-relaxed text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                spellCheck={false}
+                placeholder="Tuliskan draf dokumen dalam format Markdown..."
+              />
+            ) : (
+              <div className="mx-auto min-h-[850px] max-w-[850px] rounded-sm bg-white p-8 md:p-12 text-[#111827] shadow-xl ring-1 ring-black/5 font-serif text-[12pt] leading-relaxed text-justify">
+                <Markdown content={draftContent} className="space-y-4" />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Tab 1: Google Docs Preview */}
       {tab === 'gdocs' && (

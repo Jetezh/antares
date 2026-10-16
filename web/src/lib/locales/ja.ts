@@ -870,6 +870,14 @@ const ja: Dict = {
   'research.latexTemplateIeee': 'IEEE ジャーナル',
   'research.latexTemplateStandard': '標準論文',
   'research.latexTemplateSpringer': 'Springer 形式',
+
+  'research.draft': '下書き',
+  'research.tabDraft': 'ドキュメント下書き',
+  'research.exportGdocs': 'Google Docs にエクスポート',
+  'research.exportingGdocs': 'Google Docs にエクスポート中...',
+  'research.exportedGdocsSuccess': 'Google Docs を作成しました！',
+  'research.openExportedDoc': 'Google Docs を開く',
+  'research.draftTitlePlaceholder': 'ドキュメント名 (例: 第3章 システム設計)...',
 }
 
 export default ja

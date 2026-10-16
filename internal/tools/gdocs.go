@@ -14,6 +14,9 @@ import (
 	"strings"
 	"time"
 	"unicode/utf16"
+
+	"github.com/enowdev/antares/internal/config"
+	"github.com/enowdev/antares/internal/store"
 )
 
 func extractDocIDFromURL(raw string) string {
@@ -76,20 +79,19 @@ func resolveGDocsEndpoint(in Input, argWebhookURL, argDocumentID string) (method
 	return "", "", fmt.Errorf("no Google Docs destination specified. Pass webhook_url or document_id (or configure research.gdocs.webhook_url / document_url in settings)")
 }
 
-func getActiveGoogleToken(ctx context.Context, in Input) (string, error) {
-	if in.Deps == nil || in.Deps.Store == nil || in.Deps.Config == nil {
+func ResolveActiveGoogleToken(ctx context.Context, cfg *config.Config, s store.Store) (string, error) {
+	if cfg == nil || s == nil {
 		return "", fmt.Errorf("runtime dependencies not available")
 	}
-	cfg := in.Deps.Config
 	clientID := strings.TrimSpace(cfg.Research.GDocs.OAuthClientID)
 	clientSecret := strings.TrimSpace(cfg.Research.GDocs.OAuthClientSecret)
 	if clientID == "" || clientSecret == "" {
 		return "", fmt.Errorf("Google OAuth Client ID or Client Secret is missing. Please configure them in Research Settings")
 	}
 
-	refreshToken, _ := in.Deps.Store.GetKV(ctx, "research:gdocs:refresh_token")
-	accessToken, _ := in.Deps.Store.GetKV(ctx, "research:gdocs:access_token")
-	expiryStr, _ := in.Deps.Store.GetKV(ctx, "research:gdocs:token_expiry")
+	refreshToken, _ := s.GetKV(ctx, "research:gdocs:refresh_token")
+	accessToken, _ := s.GetKV(ctx, "research:gdocs:access_token")
+	expiryStr, _ := s.GetKV(ctx, "research:gdocs:token_expiry")
 	var expiresAt int64
 	if expiryStr != "" {
 		expiresAt, _ = strconv.ParseInt(expiryStr, 10, 64)
@@ -144,11 +146,18 @@ func getActiveGoogleToken(ctx context.Context, in Input) (string, error) {
 	}
 
 	// Cache new access token
-	_ = in.Deps.Store.SetKV(ctx, "research:gdocs:access_token", res.AccessToken)
+	_ = s.SetKV(ctx, "research:gdocs:access_token", res.AccessToken)
 	newExpiry := time.Now().Add(time.Duration(res.ExpiresIn) * time.Second).Unix()
-	_ = in.Deps.Store.SetKV(ctx, "research:gdocs:token_expiry", strconv.FormatInt(newExpiry, 10))
+	_ = s.SetKV(ctx, "research:gdocs:token_expiry", strconv.FormatInt(newExpiry, 10))
 
 	return res.AccessToken, nil
+}
+
+func getActiveGoogleToken(ctx context.Context, in Input) (string, error) {
+	if in.Deps == nil || in.Deps.Store == nil || in.Deps.Config == nil {
+		return "", fmt.Errorf("runtime dependencies not available")
+	}
+	return ResolveActiveGoogleToken(ctx, in.Deps.Config, in.Deps.Store)
 }
 
 // -----------------------------------------------------------------------------

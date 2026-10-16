@@ -1,10 +1,13 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/enowdev/antares/internal/config"
 	"github.com/enowdev/antares/internal/tools"
@@ -173,5 +176,107 @@ func (s *Server) handleGDocsRollback(w http.ResponseWriter, r *http.Request) {
 		"status":  "success",
 		"message": res.Content,
 		"meta":    res.Meta,
+	})
+}
+
+func (s *Server) handleGDocsExport(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var body struct {
+		Title string `json:"title"`
+		HTML  string `json:"html"`
+	}
+	if err := decodeBody(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	title := strings.TrimSpace(body.Title)
+	if title == "" {
+		title = "Dokumen Antares - " + time.Now().Format("2006-01-02 15:04")
+	}
+	contentHTML := strings.TrimSpace(body.HTML)
+	if contentHTML == "" {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("html content cannot be empty"))
+		return
+	}
+
+	token, err := tools.ResolveActiveGoogleToken(ctx, s.config(), s.db)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("Google account is not connected: %w", err))
+		return
+	}
+
+	// Prepare multipart/related upload body to Google Drive API
+	// Metadata sets target Google Docs mimeType: application/vnd.google-apps.document
+	// Media part contains the semantic HTML
+	boundary := fmt.Sprintf("-------AntaresBoundary%d", time.Now().UnixNano())
+	var b bytes.Buffer
+
+	// Part 1: Metadata JSON
+	b.WriteString(fmt.Sprintf("--%s\r\n", boundary))
+	b.WriteString("Content-Type: application/json; charset=UTF-8\r\n\r\n")
+	meta := map[string]string{
+		"name":     title,
+		"mimeType": "application/vnd.google-apps.document",
+	}
+	metaBytes, _ := json.Marshal(meta)
+	b.Write(metaBytes)
+	b.WriteString("\r\n")
+
+	// Part 2: HTML Content
+	b.WriteString(fmt.Sprintf("--%s\r\n", boundary))
+	b.WriteString("Content-Type: text/html; charset=UTF-8\r\n\r\n")
+	b.WriteString(contentHTML)
+	b.WriteString(fmt.Sprintf("\r\n--%s--\r\n", boundary))
+
+	uploadURL := "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart"
+	req, err := http.NewRequestWithContext(ctx, "POST", uploadURL, &b)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Errorf("create drive upload request: %w", err))
+		return
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", fmt.Sprintf("multipart/related; boundary=%s", boundary))
+
+	client := &http.Client{Timeout: 45 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Errorf("send request to Google Drive: %w", err))
+		return
+	}
+	defer resp.Body.Close()
+
+	respBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("Google Drive API error (%d): %s", resp.StatusCode, string(respBytes)))
+		return
+	}
+
+	var driveResp struct {
+		ID       string `json:"id"`
+		Name     string `json:"name"`
+		MimeType string `json:"mimeType"`
+	}
+	if err := json.Unmarshal(respBytes, &driveResp); err != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Errorf("parse drive response: %w", err))
+		return
+	}
+
+	docURL := fmt.Sprintf("https://docs.google.com/document/d/%s/edit", driveResp.ID)
+
+	// Automatically update research.gdocs.document_url and document_id in config
+	cfg, err := config.Reload()
+	if err == nil {
+		cfg.Research.GDocs.DocumentURL = docURL
+		cfg.Research.GDocs.DocumentID = driveResp.ID
+		_ = config.Save(cfg)
+		_ = s.applyReload()
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":       "success",
+		"document_id":  driveResp.ID,
+		"document_url": docURL,
+		"title":        driveResp.Name,
 	})
 }

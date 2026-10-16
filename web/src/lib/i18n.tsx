@@ -1343,6 +1343,14 @@ const en = {
   'research.latexTemplateIeee': 'IEEE Journal',
   'research.latexTemplateStandard': 'Standard Article',
   'research.latexTemplateSpringer': 'Springer Nature',
+
+  'research.draft': 'Draft',
+  'research.tabDraft': 'Document Draft',
+  'research.exportGdocs': 'Export to Google Docs',
+  'research.exportingGdocs': 'Exporting to Google Docs...',
+  'research.exportedGdocsSuccess': 'Google Doc Created!',
+  'research.openExportedDoc': 'Open Google Doc',
+  'research.draftTitlePlaceholder': 'Document Title (e.g. Chapter 3 - System Design)...',
 } as const
 
 export type MessageKey = keyof typeof en

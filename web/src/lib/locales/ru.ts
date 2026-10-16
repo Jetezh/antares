@@ -871,6 +871,14 @@ const ru: Dict = {
   'research.latexTemplateIeee': 'Журнал IEEE',
   'research.latexTemplateStandard': 'Стандартная статья',
   'research.latexTemplateSpringer': 'Формат Springer',
+
+  'research.draft': 'Черновик',
+  'research.tabDraft': 'Черновик документа',
+  'research.exportGdocs': 'Экспорт в Google Docs',
+  'research.exportingGdocs': 'Экспорт в Google Docs...',
+  'research.exportedGdocsSuccess': 'Документ Google Docs создан!',
+  'research.openExportedDoc': 'Открыть Google Docs',
+  'research.draftTitlePlaceholder': 'Название документа (напр. Глава 3 - Проектирование)...',
 }
 
 export default ru

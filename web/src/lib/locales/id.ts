@@ -1191,6 +1191,14 @@ const id: Dict = {
   'research.latexTemplateIeee': 'Jurnal IEEE',
   'research.latexTemplateStandard': 'Artikel Standar',
   'research.latexTemplateSpringer': 'Format Springer',
+
+  'research.draft': 'Draf Naskah',
+  'research.tabDraft': 'Draf Dokumen',
+  'research.exportGdocs': 'Ekspor ke Google Docs',
+  'research.exportingGdocs': 'Mengekspor ke Google Docs...',
+  'research.exportedGdocsSuccess': 'Google Docs Berhasil Dibuat!',
+  'research.openExportedDoc': 'Buka Google Docs',
+  'research.draftTitlePlaceholder': 'Judul Dokumen (misal: Bab 3 - Perancangan Sistem)...',
 }
 
 export default id

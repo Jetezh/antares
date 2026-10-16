@@ -868,6 +868,14 @@ const zh: Dict = {
   'research.latexTemplateIeee': 'IEEE 期刊',
   'research.latexTemplateStandard': '标准文章',
   'research.latexTemplateSpringer': 'Springer 格式',
+
+  'research.draft': '草稿',
+  'research.tabDraft': '文档草稿',
+  'research.exportGdocs': '导出到 Google Docs',
+  'research.exportingGdocs': '正在导出到 Google Docs...',
+  'research.exportedGdocsSuccess': '已成功创建 Google Docs！',
+  'research.openExportedDoc': '打开 Google Docs',
+  'research.draftTitlePlaceholder': '文档标题 (例如: 第三章 - 系统设计)...',
 }
 
 export default zh

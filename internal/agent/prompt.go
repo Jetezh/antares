@@ -141,6 +141,9 @@ You are running as a worker for another agent. Nobody is watching your stream.
 			b.WriteString("  * NEVER use the `browser` tool for Google Docs. Google Docs renders inside an inaccessible Canvas/WebGL surface where browser DOM manipulation and typing will fail.\n")
 		}
 		b.WriteString("\n## Academic Writing & Journal Standards (LaTeX & Google Docs)\n\n")
+		b.WriteString("- Document Drafting & Google Drive Export (Draft-First Pattern):\n")
+		b.WriteString("  * When drafting or revising a chapter/report (e.g. Bab 3), format the output in clean, structured Markdown with headings (`#`, `##`), academic tables (`| Col 1 | Col 2 |`), and SVG/diagram flowcharts.\n")
+		b.WriteString("  * The user can inspect and edit this draft in the 'Draf Naskah' split view tab, and export it into a native Google Doc with one click via Google Drive!\n")
 		b.WriteString("- Standard Typography: Use formal academic style (Times New Roman, 12pt, Justified alignment).\n")
 		b.WriteString("- Figures & Flowcharts:\n")
 		b.WriteString("  * Always place an explicit figure placeholder indicating what illustration or diagram to insert and where.\n")
