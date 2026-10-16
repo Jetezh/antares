@@ -133,6 +133,7 @@ func (s *Server) routes() {
 	m.HandleFunc("POST /api/research/gdocs/export", s.handleGDocsExport)
 	m.HandleFunc("GET /api/research/draft", s.handleGetDraft)
 	m.HandleFunc("POST /api/research/draft", s.handleSaveDraft)
+	m.HandleFunc("POST /api/research/open-browser", s.handleOpenBrowser)
 
 	// Models & providers
 	m.HandleFunc("GET /api/model/options", s.handleModelOptions)

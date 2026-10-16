@@ -357,20 +357,176 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
     setExportError('')
     setExportedDocUrl('')
     try {
-      // Basic markdown-to-html conversion for semantic Google Docs import
-      let html = draftContent
-        .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-        .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-        .replace(/^# (.*$)/gim, '<h1>$1</h1>')
-        .replace(/\*\*(.*)\*\*/gim, '<b>$1</b>')
-        .replace(/\*(.*)\*/gim, '<i>$1</i>')
-        .replace(/\n\n/gim, '<br/><br/>')
+      // High-fidelity Markdown-to-HTML converter for Google Docs / Word export
+      // Converts SVG diagrams to inline PNG Data URIs so Google Docs embeds them as native drawings/images
+      const convertSvgToPngDataUrl = async (svgStr: string): Promise<string> => {
+        return new Promise((resolve) => {
+          try {
+            const parser = new DOMParser()
+            const doc = parser.parseFromString(svgStr, 'image/svg+xml')
+            const svgEl = doc.querySelector('svg')
+            if (!svgEl) {
+              resolve('')
+              return
+            }
+
+            let width = 800
+            let height = 500
+            const viewBox = svgEl.getAttribute('viewBox')
+            if (viewBox) {
+              const parts = viewBox.split(/\s+/).map(Number)
+              if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
+                width = parts[2]
+                height = parts[3]
+              }
+            } else {
+              width = parseFloat(svgEl.getAttribute('width') || '800') || 800
+              height = parseFloat(svgEl.getAttribute('height') || '500') || 500
+            }
+
+            // Create canvas and draw SVG
+            const canvas = document.createElement('canvas')
+            canvas.width = width * 2 // 2x resolution for retina/clean print
+            canvas.height = height * 2
+            const ctx = canvas.getContext('2d')
+            if (!ctx) {
+              resolve('')
+              return
+            }
+            ctx.scale(2, 2)
+
+            const img = new Image()
+            const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' })
+            const url = URL.createObjectURL(svgBlob)
+
+            img.onload = () => {
+              ctx.drawImage(img, 0, 0, width, height)
+              URL.revokeObjectURL(url)
+              resolve(canvas.toDataURL('image/png'))
+            }
+            img.onerror = () => {
+              URL.revokeObjectURL(url)
+              resolve('')
+            }
+            img.src = url
+          } catch {
+            resolve('')
+          }
+        })
+      }
+
+      // 1. Process SVG blocks: replace with rendered PNG <img> for Google Docs compatibility
+      let processedContent = draftContent
+      const svgMatches = processedContent.match(/<svg[\s\S]*?<\/svg>/gi) || []
+      for (const svgCode of svgMatches) {
+        const pngDataUrl = await convertSvgToPngDataUrl(svgCode)
+        if (pngDataUrl) {
+          processedContent = processedContent.replace(
+            svgCode,
+            `<p style="text-align: center; margin: 16px 0;"><img src="${pngDataUrl}" style="max-width: 600px; height: auto;" /></p>`,
+          )
+        }
+      }
+
+      // 2. Parse Markdown elements (Headings, Tables, Lists, Paragraphs)
+      const lines = processedContent.split('\n')
+      let bodyHtml = ''
+      let inTable = false
+      let tableRows: string[][] = []
+
+      const flushTable = () => {
+        if (!inTable || tableRows.length === 0) {
+          inTable = false
+          tableRows = []
+          return
+        }
+        bodyHtml += '<table border="1" style="border-collapse: collapse; width: 100%; margin: 14px 0; font-family: \'Times New Roman\', serif; font-size: 11pt;">\n'
+        tableRows.forEach((row, rIdx) => {
+          bodyHtml += '  <tr>\n'
+          row.forEach((cell) => {
+            const tag = rIdx === 0 ? 'th' : 'td'
+            const bg = rIdx === 0 ? 'background-color: #f1f5f9; font-weight: bold; text-align: center;' : 'text-align: left;'
+            bodyHtml += `    <${tag} style="border: 1px solid #334155; padding: 6px 10px; ${bg}">${cell.trim()}</${tag}>\n`
+          })
+          bodyHtml += '  </tr>\n'
+        })
+        bodyHtml += '</table>\n'
+        inTable = false
+        tableRows = []
+      }
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim()
+        if (!line) {
+          if (inTable) flushTable()
+          continue
+        }
+
+        // Table detection
+        if (line.includes('|') && i + 1 < lines.length && /^\s*\|?[\s:|-]+\|[\s:|-]*$/.test(lines[i + 1])) {
+          inTable = true
+          const parseRow = (l: string) => l.replace(/^\s*\|/, '').replace(/\|\s*$/, '').split('|')
+          tableRows.push(parseRow(line))
+          i++ // skip separator row
+          while (i + 1 < lines.length && lines[i + 1].includes('|') && lines[i + 1].trim()) {
+            i++
+            tableRows.push(parseRow(lines[i]))
+          }
+          flushTable()
+          continue
+        }
+
+        // Headings
+        if (line.startsWith('# ')) {
+          bodyHtml += `<h1 style="font-size: 16pt; font-weight: bold; text-align: center; margin-top: 20px; margin-bottom: 10px;">${line.slice(2).trim()}</h1>\n`
+        } else if (line.startsWith('## ')) {
+          bodyHtml += `<h2 style="font-size: 14pt; font-weight: bold; margin-top: 18px; margin-bottom: 8px;">${line.slice(3).trim()}</h2>\n`
+        } else if (line.startsWith('### ')) {
+          bodyHtml += `<h3 style="font-size: 12pt; font-weight: bold; font-style: italic; margin-top: 14px; margin-bottom: 6px;">${line.slice(4).trim()}</h3>\n`
+        } else if (line.startsWith('<p') || line.startsWith('<img') || line.startsWith('<div')) {
+          bodyHtml += line + '\n'
+        } else {
+          // Detect caption lines (*Gambar ...* or *Tabel ...*)
+          const isCaption = /^\*?(Gambar|Figure|Tabel|Table)\s+\d+[\d.]*[:\s]/.test(line)
+          let formatted = line
+            .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+            .replace(/\*(.*?)\*/g, '<i>$1</i>')
+          if (isCaption) {
+            bodyHtml += `<p style="text-align: center; font-size: 10pt; font-style: italic; margin: 6px 0 14px 0; color: #334155;">${formatted}</p>\n`
+          } else {
+            bodyHtml += `<p style="margin-bottom: 10px; text-indent: 28pt; line-height: 1.5;">${formatted}</p>\n`
+          }
+        }
+      }
+      if (inTable) flushTable()
+
+      const fullHtml = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>${draftTitle}</title>
+<style>
+body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.5; text-align: justify; color: #000; margin: 40px; }
+h1 { font-size: 16pt; font-weight: bold; text-align: center; margin-top: 20px; margin-bottom: 10px; }
+h2 { font-size: 14pt; font-weight: bold; margin-top: 18px; margin-bottom: 8px; }
+h3 { font-size: 12pt; font-weight: bold; font-style: italic; margin-top: 14px; margin-bottom: 6px; }
+p { margin-bottom: 10px; text-indent: 28pt; line-height: 1.5; }
+table { border-collapse: collapse; width: 100%; margin: 14px 0; font-family: 'Times New Roman', serif; font-size: 11pt; }
+th, td { border: 1px solid #334155; padding: 6px 10px; }
+th { background-color: #f1f5f9; font-weight: bold; text-align: center; }
+img { max-width: 100%; height: auto; }
+</style>
+</head>
+<body>
+${bodyHtml}
+</body>
+</html>`
 
       const res = await post<{ status: string; document_url: string; document_id: string }>(
         '/research/gdocs/export',
         {
           title: draftTitle,
-          html: `<div style="font-family: 'Times New Roman', serif; font-size: 12pt; line-height: 1.5; text-align: justify;">${html}</div>`,
+          html: fullHtml,
         },
       )
       if (res.document_url) {
@@ -875,15 +1031,18 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
                 <span>{t('research.exportedGdocsSuccess')}</span>
               </div>
               <div className="flex items-center gap-2">
-                <a
-                  href={exportedDocUrl}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="inline-flex items-center gap-1 rounded bg-emerald-600 px-2 py-0.5 text-[11px] font-medium text-white hover:bg-emerald-700"
+                <button
+                  type="button"
+                  onClick={() => {
+                    post('/research/open-browser', { url: exportedDocUrl }).catch(() => {
+                      window.open(exportedDocUrl, '_blank')
+                    })
+                  }}
+                  className="inline-flex items-center gap-1 rounded bg-emerald-600 px-2 py-0.5 text-[11px] font-medium text-white hover:bg-emerald-700 cursor-pointer"
                 >
                   <span>{t('research.openExportedDoc')}</span>
                   <ArrowSquareOut className="size-3" />
-                </a>
+                </button>
                 <Button
                   size="sm"
                   variant="ghost"
@@ -1059,15 +1218,21 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
                 <span className="hidden sm:inline text-[10px]">{t('research.docTipTitle')}</span>
               </div>
               {docUrl && isSafeGoogleDocUrl(docUrl) ? (
-                <a
-                  href={getCleanDocUrl(docUrl)}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+                <button
+                  type="button"
+                  onClick={() => {
+                    const u = getCleanDocUrl(docUrl)
+                    if (u) {
+                      post('/research/open-browser', { url: u }).catch(() => {
+                        window.open(u, '_blank')
+                      })
+                    }
+                  }}
+                  className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
                 >
                   <span>{t('research.openDoc')}</span>
                   <ArrowSquareOut className="size-3" />
-                </a>
+                </button>
               ) : null}
             </div>
           </div>

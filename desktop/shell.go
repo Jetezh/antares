@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"net/url"
+	"os/exec"
 	"runtime"
 	"strings"
 	"sync"
@@ -107,7 +108,13 @@ func (s *Shell) onPageMessage(msg string, origin *application.OriginInfo) {
 		}
 		switch u.Scheme {
 		case "http", "https", "mailto":
-			_ = s.app.Browser.OpenURL(u.String())
+			if err := s.app.Browser.OpenURL(u.String()); err != nil {
+				s.app.Logger.Warn("app.Browser.OpenURL failed, trying system open", "err", err)
+				openWithSystemDefault(u.String())
+			} else {
+				// Fallback on Linux if WebKit/Wails browser fails silently
+				openWithSystemDefault(u.String())
+			}
 		}
 	case strings.HasPrefix(msg, "antares:path:") && dashboard:
 		s.mgr.PagePath(origin.Origin, strings.TrimPrefix(msg, "antares:path:"))
@@ -137,6 +144,21 @@ func originOf(raw string) string {
 		return ""
 	}
 	return strings.ToLower(u.Scheme + "://" + u.Host)
+}
+
+func openWithSystemDefault(targetURL string) {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "linux":
+		cmd = exec.Command("xdg-open", targetURL)
+	case "darwin":
+		cmd = exec.Command("open", targetURL)
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", targetURL)
+	}
+	if cmd != nil {
+		_ = cmd.Start()
+	}
 }
 
 // ---- window, menu, tray ----

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 
@@ -330,4 +332,36 @@ func (s *Server) handleSaveDraft(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = s.db.SetKV(ctx, "research:draft:content", body.Content)
 	writeJSON(w, http.StatusOK, map[string]any{"status": "saved"})
+}
+
+func (s *Server) handleOpenBrowser(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		URL string `json:"url"`
+	}
+	if err := decodeBody(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	target := strings.TrimSpace(body.URL)
+	if target == "" {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("url cannot be empty"))
+		return
+	}
+
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "linux":
+		cmd = exec.Command("xdg-open", target)
+	case "darwin":
+		cmd = exec.Command("open", target)
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", target)
+	default:
+		cmd = exec.Command("xdg-open", target)
+	}
+	if cmd != nil {
+		_ = cmd.Start()
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"status": "opened", "url": target})
 }
