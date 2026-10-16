@@ -310,14 +310,44 @@ function RichBlock({ block }: { block: Block }) {
           <EmbeddedImage alt={block.alt} url={block.url} />
         </div>
       )
-    case 'table':
+    case 'table': {
+      // Calculate proportional column weights based on content lengths
+      const numCols = block.header.length
+      const colLengths = new Array(numCols).fill(0)
+      block.header.forEach((h, i) => {
+        colLengths[i] = Math.max(colLengths[i], h.trim().length)
+      })
+      block.rows.forEach((row) => {
+        row.forEach((c, i) => {
+          if (i < numCols) {
+            colLengths[i] = Math.max(colLengths[i], c.trim().length)
+          }
+        })
+      })
+
+      // Normalize weights
+      const totalLen = colLengths.reduce((a, b) => a + b, 0) || 1
+      const colWidths = colLengths.map((len, idx) => {
+        // Narrow columns for "No" or short identifiers
+        const hName = block.header[idx]?.trim().toLowerCase()
+        if (hName === 'no' || hName === 'no.' || hName === '#') {
+          return '6%'
+        }
+        const pct = Math.max(12, Math.round((len / totalLen) * 100))
+        return `${pct}%`
+      })
+
       return (
-        <div className="my-4 overflow-x-auto">
-          <table className="w-full border-collapse border border-slate-700/60 text-xs text-foreground bg-background">
+        <div className="my-3 overflow-x-auto">
+          <table className="w-full border-collapse border border-slate-700/60 text-xs text-foreground bg-background table-auto">
             <thead>
               <tr className="border-b border-slate-700/60 bg-muted/50">
                 {block.header.map((h, i) => (
-                  <th key={i} className="border border-slate-700/60 px-3 py-2 text-center font-bold text-foreground">
+                  <th
+                    key={i}
+                    style={{ width: colWidths[i] }}
+                    className="border border-slate-700/60 px-3 py-2 text-center font-bold text-foreground"
+                  >
                     <Inline text={h} />
                   </th>
                 ))}
@@ -326,17 +356,28 @@ function RichBlock({ block }: { block: Block }) {
             <tbody>
               {block.rows.map((row, r) => (
                 <tr key={r} className="border-b border-slate-700/40 hover:bg-muted/10">
-                  {row.map((c, i) => (
-                    <td key={i} className="border border-slate-700/60 px-3 py-2 align-middle text-foreground">
-                      <Inline text={c} />
-                    </td>
-                  ))}
+                  {row.map((c, i) => {
+                    const isCenter = i === 0 && (block.header[0]?.toLowerCase().includes('no') || c.length <= 4)
+                    return (
+                      <td
+                        key={i}
+                        style={{ width: colWidths[i] }}
+                        className={cn(
+                          'border border-slate-700/60 px-3 py-2 align-middle text-foreground leading-relaxed',
+                          isCenter ? 'text-center' : 'text-left',
+                        )}
+                      >
+                        <Inline text={c} />
+                      </td>
+                    )
+                  })}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )
+    }
     case 'paragraph': {
       const trimmed = block.text.trim()
       const isFigure = /^\*?(Gambar|Figure)\s+\d+[\d.]*[:\s]/.test(trimmed)

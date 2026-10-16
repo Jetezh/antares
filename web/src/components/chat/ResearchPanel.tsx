@@ -441,13 +441,33 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
           tableRows = []
           return
         }
-        bodyHtml += '<table border="1" style="border-collapse: collapse; width: 100%; margin-top: 4px; margin-bottom: 12px; font-family: \'Times New Roman\', serif; font-size: 11pt;">\n'
+        // Calculate proportional column widths
+        const numCols = tableRows[0].length
+        const colLengths = new Array(numCols).fill(0)
+        tableRows.forEach((row) => {
+          row.forEach((cell, i) => {
+            if (i < numCols) {
+              colLengths[i] = Math.max(colLengths[i], cell.trim().length)
+            }
+          })
+        })
+        const totalLen = colLengths.reduce((a, b) => a + b, 0) || 1
+        const colWidths = colLengths.map((len, idx) => {
+          const hName = tableRows[0][idx]?.trim().toLowerCase()
+          if (hName === 'no' || hName === 'no.' || hName === '#') return '6%'
+          const pct = Math.max(12, Math.round((len / totalLen) * 100))
+          return `${pct}%`
+        })
+
+        bodyHtml += '<table border="1" style="border-collapse: collapse; width: 100%; margin-top: 4px; margin-bottom: 12px; font-family: \'Times New Roman\', serif; font-size: 11pt; table-layout: auto;">\n'
         tableRows.forEach((row, rIdx) => {
           bodyHtml += '  <tr>\n'
-          row.forEach((cell) => {
+          row.forEach((cell, cIdx) => {
             const tag = rIdx === 0 ? 'th' : 'td'
-            const bg = rIdx === 0 ? 'background-color: #f1f5f9; font-weight: bold; text-align: center;' : 'text-align: left;'
-            bodyHtml += `    <${tag} style="border: 1px solid #1e293b; padding: 5px 8px; font-size: 11pt; line-height: 1.15; ${bg}">${cell.trim()}</${tag}>\n`
+            const isCenter = rIdx === 0 || (cIdx === 0 && (tableRows[0][0]?.toLowerCase().includes('no') || cell.trim().length <= 4))
+            const align = isCenter ? 'text-align: center;' : 'text-align: left;'
+            const bg = rIdx === 0 ? 'background-color: #f1f5f9; font-weight: bold;' : ''
+            bodyHtml += `    <${tag} style="border: 1px solid #1e293b; padding: 5px 8px; font-size: 11pt; line-height: 1.15; width: ${colWidths[cIdx]}; ${align} ${bg}">${cell.trim()}</${tag}>\n`
           })
           bodyHtml += '  </tr>\n'
         })
@@ -1084,8 +1104,43 @@ ${bodyHtml}
                 placeholder="Tuliskan draf dokumen dalam format Markdown..."
               />
             ) : (
-              <div className="mx-auto min-h-[850px] max-w-[850px] rounded-sm bg-white p-8 md:p-12 text-[#111827] shadow-xl ring-1 ring-black/5 font-serif text-[12pt] leading-[1.15] text-justify">
-                <Markdown content={highlightedDraftContent} className="space-y-2 text-gray-950 font-serif" />
+              <div className="mx-auto flex flex-col items-center gap-6 pb-12">
+                {/* Visual A4 Page Sheets with Margins and Pagination */}
+                {(() => {
+                  // Split content into simulated page sheets based on headings or length
+                  const rawSections = highlightedDraftContent.split(/(?=\n##?\s+)/g)
+                  const pages: string[] = []
+                  let currentPage = ''
+
+                  rawSections.forEach((sec) => {
+                    // Start new page if current page has substantial content or section is a major # BAB
+                    if (currentPage && (currentPage.length > 2200 || sec.trim().startsWith('# '))) {
+                      pages.push(currentPage)
+                      currentPage = sec.trim()
+                    } else {
+                      currentPage = (currentPage ? currentPage + '\n\n' : '') + sec.trim()
+                    }
+                  })
+                  if (currentPage) pages.push(currentPage)
+
+                  return pages.map((pageText, pIdx) => (
+                    <div
+                      key={pIdx}
+                      style={{ width: '820px', minHeight: '1120px' }}
+                      className="relative flex flex-col justify-between rounded-sm bg-white px-14 pt-14 pb-10 text-[#111827] shadow-xl ring-1 ring-black/10 font-serif text-[12pt] leading-[1.15] text-justify"
+                    >
+                      {/* Page Body Content */}
+                      <div className="flex-1">
+                        <Markdown content={pageText} className="space-y-2 text-gray-950 font-serif" />
+                      </div>
+
+                      {/* Official Academic Page Footer (Nomor Halaman Rata Tengah Bawah) */}
+                      <div className="mt-8 border-t border-gray-200/60 pt-3 text-center font-serif text-[10pt] text-gray-500 select-none">
+                        — {pIdx + 1} —
+                      </div>
+                    </div>
+                  ))
+                })()}
               </div>
             )}
           </div>
