@@ -32,12 +32,18 @@ export function Markdown({ content, className }: { content: string; className?: 
   )
 }
 
+interface ListItem {
+  text: string
+  ordered: boolean
+  level: number
+}
+
 type Block =
   | { type: 'code'; code: string; lang: string }
   | { type: 'svg'; svg: string }
   | { type: 'html'; html: string }
   | { type: 'heading'; level: number; text: string }
-  | { type: 'list'; ordered: boolean; items: string[] }
+  | { type: 'list'; items: ListItem[] }
   | { type: 'quote'; text: string }
   | { type: 'table'; header: string[]; rows: string[][] }
   | { type: 'rule' }
@@ -166,17 +172,23 @@ function parseBlocks(src: string): Block[] {
       continue
     }
 
-    const bullet = /^\s*([-*+]|\d+[.)])\s+/.exec(line)
+    const bullet = /^(\s*)([-*+]|\d+[.)])\s+/.exec(line)
     if (bullet) {
-      const ordered = /\d/.test(bullet[1])
-      const items: string[] = []
+      const items: ListItem[] = []
       while (i < lines.length) {
-        const m = /^\s*([-*+]|\d+[.)])\s+(.*)$/.exec(lines[i])
+        const m = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/.exec(lines[i])
         if (!m) break
-        items.push(m[2])
+        const indentSpaces = m[1].replace(/\t/g, '  ').length
+        const level = Math.floor(indentSpaces / 2)
+        const ordered = /\d/.test(m[2])
+        items.push({
+          text: m[3],
+          ordered,
+          level,
+        })
         i++
       }
-      blocks.push({ type: 'list', ordered, items })
+      blocks.push({ type: 'list', items })
       continue
     }
 
@@ -285,24 +297,26 @@ function RichBlock({ block }: { block: Block }) {
         </h4>
       )
     }
-    case 'list':
-      return block.ordered ? (
-        <ol className="list-decimal space-y-1 pl-5">
-          {block.items.map((it, i) => (
-            <li key={i}>
-              <Inline text={it} />
-            </li>
-          ))}
-        </ol>
-      ) : (
-        <ul className="list-disc space-y-1 pl-5">
-          {block.items.map((it, i) => (
-            <li key={i}>
-              <Inline text={it} />
-            </li>
-          ))}
-        </ul>
+    case 'list': {
+      const indentClasses = ['pl-5', 'pl-11', 'pl-16', 'pl-20', 'pl-24']
+      return (
+        <div className="space-y-1 my-1.5 font-serif text-[12pt] leading-[1.15] text-gray-950">
+          {block.items.map((it, idx) => {
+            const indClass = indentClasses[Math.min(it.level, indentClasses.length - 1)]
+            return (
+              <div key={idx} className={cn('flex items-baseline gap-2', indClass)}>
+                <span className="shrink-0 select-none font-mono text-[11pt] text-gray-700">
+                  {it.ordered ? `${idx + 1}.` : '•'}
+                </span>
+                <span className="flex-1 leading-[1.15]">
+                  <Inline text={it.text} />
+                </span>
+              </div>
+            )
+          })}
+        </div>
       )
+    }
     case 'svg':
       return (
         <div

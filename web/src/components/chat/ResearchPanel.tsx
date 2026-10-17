@@ -477,7 +477,8 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
       }
 
       for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim()
+        const rawLine = lines[i]
+        const line = rawLine.trim()
         if (!line) {
           if (inTable) flushTable()
           continue
@@ -494,6 +495,23 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
             tableRows.push(parseRow(lines[i]))
           }
           flushTable()
+          continue
+        }
+
+        // List detection (Ordered or Unordered, with indentation support)
+        const listMatch = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/.exec(rawLine)
+        if (listMatch) {
+          if (inTable) flushTable()
+          const indentSpaces = listMatch[1].replace(/\t/g, '  ').length
+          const level = Math.floor(indentSpaces / 2)
+          const isOrdered = /\d/.test(listMatch[2])
+          const content = listMatch[3]
+            .replace(/\*\*([\s\S]*?)\*\*/g, '<b style="font-weight: 700; font-family: \'Times New Roman\', Times, serif;">$1</b>')
+            .replace(/\*([\s\S]*?)\*/g, '<i style="font-family: \'Times New Roman\', Times, serif;">$1</i>')
+
+          const marginL = 1 + level * 0.8
+          const listStyle = isOrdered ? 'list-style-type: decimal;' : 'list-style-type: disc;'
+          bodyHtml += `<ul style="${listStyle} margin-top: 2pt; margin-bottom: 2pt; padding-left: ${marginL}cm; font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.15;"><li style="margin-top: 0pt; margin-bottom: 0pt; line-height: 1.15;"><span style="font-family: 'Times New Roman', Times, serif;">${content}</span></li></ul>\n`
           continue
         }
 
