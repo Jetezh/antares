@@ -287,6 +287,7 @@ func (s *Server) handleGDocsExport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Post-creation enforcement: Call Google Docs REST API to ensure 100% Times New Roman across the entire document
+	// while PRESERVING bold, italic, and heading font weights
 	go func(docID, authToken string) {
 		gdocsReqURL := fmt.Sprintf("https://docs.googleapis.com/v1/documents/%s", url.PathEscape(docID))
 		infoReq, err := http.NewRequest("GET", gdocsReqURL, nil)
@@ -304,36 +305,88 @@ func (s *Server) handleGDocsExport(w http.ResponseWriter, r *http.Request) {
 		var gdoc struct {
 			Body struct {
 				Content []struct {
-					EndIndex int `json:"endIndex"`
+					StartIndex int `json:"startIndex"`
+					EndIndex   int `json:"endIndex"`
+					Paragraph  *struct {
+						ParagraphStyle *struct {
+							NamedStyleType string `json:"namedStyleType"`
+						} `json:"paragraphStyle"`
+						Elements []struct {
+							StartIndex int `json:"startIndex"`
+							EndIndex   int `json:"endIndex"`
+							TextRun    *struct {
+								Content   string `json:"content"`
+								TextStyle *struct {
+									Bold   bool `json:"bold"`
+									Italic bool `json:"italic"`
+								} `json:"textStyle"`
+							} `json:"textRun"`
+						} `json:"elements"`
+					} `json:"paragraph"`
 				} `json:"content"`
 			} `json:"body"`
 		}
 		if err := json.NewDecoder(infoResp.Body).Decode(&gdoc); err != nil || len(gdoc.Body.Content) == 0 {
 			return
 		}
-		lastIndex := gdoc.Body.Content[len(gdoc.Body.Content)-1].EndIndex
-		if lastIndex <= 1 {
+
+		var reqs []map[string]any
+
+		for _, item := range gdoc.Body.Content {
+			if item.Paragraph == nil {
+				continue
+			}
+			isHeading := item.Paragraph.ParagraphStyle != nil && strings.HasPrefix(item.Paragraph.ParagraphStyle.NamedStyleType, "HEADING_")
+
+			for _, el := range item.Paragraph.Elements {
+				if el.TextRun == nil || el.StartIndex >= el.EndIndex {
+					continue
+				}
+				isBold := isHeading
+				isItalic := false
+				if el.TextRun.TextStyle != nil {
+					if el.TextRun.TextStyle.Bold {
+						isBold = true
+					}
+					if el.TextRun.TextStyle.Italic {
+						isItalic = true
+					}
+				}
+
+				textStyle := map[string]any{
+					"weightedFontFamily": map[string]any{
+						"fontFamily": "Times New Roman",
+						"weight":     400,
+					},
+					"bold":   isBold,
+					"italic": isItalic,
+				}
+				if isBold {
+					textStyle["weightedFontFamily"] = map[string]any{
+						"fontFamily": "Times New Roman",
+						"weight":     700,
+					}
+				}
+
+				reqs = append(reqs, map[string]any{
+					"updateTextStyle": map[string]any{
+						"range": map[string]any{
+							"startIndex": el.StartIndex,
+							"endIndex":   el.EndIndex,
+						},
+						"textStyle": textStyle,
+						"fields":    "weightedFontFamily,bold,italic",
+					},
+				})
+			}
+		}
+
+		if len(reqs) == 0 {
 			return
 		}
 
-		batchReq := map[string]any{
-			"requests": []map[string]any{
-				{
-					"updateTextStyle": map[string]any{
-						"range": map[string]any{
-							"startIndex": 1,
-							"endIndex":   lastIndex - 1,
-						},
-						"textStyle": map[string]any{
-							"weightedFontFamily": map[string]any{
-								"fontFamily": "Times New Roman",
-							},
-						},
-						"fields": "weightedFontFamily",
-					},
-				},
-			},
-		}
+		// Execute in batches if there are many elements
+		batchReq := map[string]any{"requests": reqs}
 		bBytes, _ := json.Marshal(batchReq)
 		upReq, err := http.NewRequest("POST", fmt.Sprintf("https://docs.googleapis.com/v1/documents/%s:batchUpdate", url.PathEscape(docID)), bytes.NewReader(bBytes))
 		if err == nil {

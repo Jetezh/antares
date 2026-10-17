@@ -499,11 +499,11 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
 
         // Headings: Academic rule: Bab 12pt bold centered uppercase; Sub-bab 12pt bold left-aligned
         if (line.startsWith('# ')) {
-          bodyHtml += `<h1 style="font-family: 'Times New Roman', Times, serif; font-size: 12pt; font-weight: bold; text-align: center; text-transform: uppercase; margin-top: 14pt; margin-bottom: 6pt; line-height: 1.15;"><span style="font-family: 'Times New Roman', Times, serif;">${line.slice(2).trim()}</span></h1>\n`
+          bodyHtml += `<h1 style="font-family: 'Times New Roman', Times, serif; font-size: 12pt; font-weight: bold; text-align: center; text-transform: uppercase; margin-top: 14pt; margin-bottom: 6pt; line-height: 1.15;"><b style="font-weight: 700; font-family: 'Times New Roman', Times, serif;">${line.slice(2).trim()}</b></h1>\n`
         } else if (line.startsWith('## ')) {
-          bodyHtml += `<h2 style="font-family: 'Times New Roman', Times, serif; font-size: 12pt; font-weight: bold; margin-top: 12pt; margin-bottom: 4pt; line-height: 1.15;"><span style="font-family: 'Times New Roman', Times, serif;">${line.slice(3).trim()}</span></h2>\n`
+          bodyHtml += `<h2 style="font-family: 'Times New Roman', Times, serif; font-size: 12pt; font-weight: bold; margin-top: 12pt; margin-bottom: 4pt; line-height: 1.15;"><b style="font-weight: 700; font-family: 'Times New Roman', Times, serif;">${line.slice(3).trim()}</b></h2>\n`
         } else if (line.startsWith('### ')) {
-          bodyHtml += `<h3 style="font-family: 'Times New Roman', Times, serif; font-size: 12pt; font-weight: bold; font-style: italic; margin-top: 10pt; margin-bottom: 2pt; line-height: 1.15;"><span style="font-family: 'Times New Roman', Times, serif;">${line.slice(4).trim()}</span></h3>\n`
+          bodyHtml += `<h3 style="font-family: 'Times New Roman', Times, serif; font-size: 12pt; font-weight: bold; font-style: italic; margin-top: 10pt; margin-bottom: 2pt; line-height: 1.15;"><b style="font-weight: 700; font-family: 'Times New Roman', Times, serif;"><i>${line.slice(4).trim()}</i></b></h3>\n`
         } else if (line.startsWith('<img') || line.startsWith('<div')) {
           bodyHtml += line + '\n'
         } else if (line.startsWith('<p')) {
@@ -517,8 +517,8 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
           const isFigure = /^\*?(Gambar|Figure)\s+\d+[\d.]*[:\s]/.test(line)
           const isTable = /^\*?(Tabel|Table)\s+\d+[\d.]*[:\s]/.test(line)
           let formatted = line
-            .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
-            .replace(/\*(.*?)\*/g, '<i>$1</i>')
+            .replace(/\*\*([\s\S]*?)\*\*/g, '<b style="font-weight: 700; font-family: \'Times New Roman\', Times, serif;">$1</b>')
+            .replace(/\*([\s\S]*?)\*/g, '<i style="font-family: \'Times New Roman\', Times, serif;">$1</i>')
           if (isFigure) {
             bodyHtml += `<p style="font-family: 'Times New Roman', Times, serif; text-align: center; font-size: 11pt; font-style: italic; font-weight: normal; margin-top: 4pt; margin-bottom: 8pt; line-height: 1.15; color: #1e293b;"><span style="font-family: 'Times New Roman', Times, serif;">${formatted}</span></p>\n`
           } else if (isTable) {
