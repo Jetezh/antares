@@ -3,8 +3,36 @@ package tools
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 )
+
+var svgBlockRe = regexp.MustCompile(`(?s)<svg[\s\S]*?</svg>`)
+
+func escapeAmpersandsInSVG(svg string) string {
+	var b strings.Builder
+	for i := 0; i < len(svg); i++ {
+		if svg[i] == '&' {
+			rest := svg[i:]
+			if strings.HasPrefix(rest, "&amp;") ||
+				strings.HasPrefix(rest, "&lt;") ||
+				strings.HasPrefix(rest, "&gt;") ||
+				strings.HasPrefix(rest, "&quot;") ||
+				strings.HasPrefix(rest, "&apos;") {
+				b.WriteByte('&')
+				continue
+			}
+			b.WriteString("&amp;")
+		} else {
+			b.WriteByte(svg[i])
+		}
+	}
+	return b.String()
+}
+
+func sanitizeDraftContent(s string) string {
+	return svgBlockRe.ReplaceAllStringFunc(s, escapeAmpersandsInSVG)
+}
 
 // -----------------------------------------------------------------------------
 // 1. draft_read
@@ -80,11 +108,11 @@ func (draftUpdateTool) Execute(ctx context.Context, in Input) Result {
 		mode = "replace"
 	}
 
-	finalContent := args.Content
+	finalContent := sanitizeDraftContent(args.Content)
 	if mode == "append" {
 		existing, _ := in.Deps.Store.GetKV(ctx, "research:draft:content")
 		if existing != "" {
-			finalContent = strings.TrimRight(existing, "\n") + "\n\n" + strings.TrimLeft(args.Content, "\n")
+			finalContent = strings.TrimRight(existing, "\n") + "\n\n" + strings.TrimLeft(finalContent, "\n")
 		}
 	}
 

@@ -362,8 +362,18 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
       const convertSvgToPngDataUrl = async (svgStr: string): Promise<string> => {
         return new Promise((resolve) => {
           try {
+            // Sanitize unescaped ampersands in text nodes (e.g. "Owner & Staff" -> "Owner &amp; Staff")
+            const sanitizedSvg = svgStr.replace(/&(?!(?:amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)/g, '&amp;')
+
             const parser = new DOMParser()
-            const doc = parser.parseFromString(svgStr, 'image/svg+xml')
+            const doc = parser.parseFromString(sanitizedSvg, 'image/svg+xml')
+            const parserError = doc.querySelector('parsererror')
+            if (parserError) {
+              console.warn('SVG parse error:', parserError.textContent)
+              resolve('')
+              return
+            }
+
             const svgEl = doc.querySelector('svg')
             if (!svgEl) {
               resolve('')
@@ -396,7 +406,7 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
             ctx.scale(2, 2)
 
             const img = new Image()
-            const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' })
+            const svgBlob = new Blob([sanitizedSvg], { type: 'image/svg+xml;charset=utf-8' })
             const url = URL.createObjectURL(svgBlob)
 
             img.onload = () => {
@@ -416,7 +426,8 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
       }
 
       // 1. Process SVG blocks: replace with rendered PNG <img> for Google Docs compatibility
-      // Set width="500" explicitly on <img> so Google Docs imports it at standard column width (not oversized)
+      // If canvas conversion succeeds, replace with rendered PNG.
+      // If it fails or is empty, DO NOT leave raw SVG text in HTML (which causes plain text letters); replace with placeholder or stripped.
       let processedContent = draftContent
       const svgMatches = processedContent.match(/<svg[\s\S]*?<\/svg>/gi) || []
       for (const svgCode of svgMatches) {
@@ -425,6 +436,12 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
           processedContent = processedContent.replace(
             svgCode,
             `<p style="text-align: center; margin-top: 10px; margin-bottom: 2px;"><img src="${pngDataUrl}" width="500" style="max-width: 500px; width: 500px; height: auto;" /></p>`,
+          )
+        } else {
+          // Fallback: replace with clean placeholder box so raw SVG text letters don't bleed into document
+          processedContent = processedContent.replace(
+            svgCode,
+            '<p style="text-align: center; margin: 12px 0; padding: 20px; border: 1px dashed #94a3b8; font-style: italic; color: #64748b;">[Diagram Alir / Gambar Arsitektur Sistem Bilik]</p>',
           )
         }
       }
