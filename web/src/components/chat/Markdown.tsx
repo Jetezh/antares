@@ -257,11 +257,32 @@ function EmbeddedImage({ alt, url }: { alt: string; url: string }) {
 function RichBlock({ block }: { block: Block }) {
   switch (block.type) {
     case 'heading': {
-      const sizes = ['text-lg', 'text-base', 'text-sm', 'text-sm', 'text-sm', 'text-sm']
+      // Academic standard: Bab (H1) is 12pt bold centered uppercase; Sub-bab (H2, H3) is 12pt bold left-aligned
+      if (block.level === 1) {
+        return (
+          <h1 className="mt-4 mb-2 text-center font-serif text-[12pt] font-bold uppercase tracking-wide text-gray-950">
+            <Inline text={block.text} />
+          </h1>
+        )
+      }
+      if (block.level === 2) {
+        return (
+          <h2 className="mt-3.5 mb-1.5 text-left font-serif text-[12pt] font-bold text-gray-950">
+            <Inline text={block.text} />
+          </h2>
+        )
+      }
+      if (block.level === 3) {
+        return (
+          <h3 className="mt-3 mb-1 text-left font-serif text-[12pt] font-bold italic text-gray-900">
+            <Inline text={block.text} />
+          </h3>
+        )
+      }
       return (
-        <p className={cn('font-medium tracking-tight', sizes[block.level - 1])}>
+        <h4 className="mt-2.5 mb-1 text-left font-serif text-[12pt] font-medium text-gray-900">
           <Inline text={block.text} />
-        </p>
+        </h4>
       )
     }
     case 'list':

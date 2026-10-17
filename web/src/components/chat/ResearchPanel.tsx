@@ -497,20 +497,19 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
           continue
         }
 
-        // Headings
+        // Headings: Academic rule: Bab 12pt bold centered uppercase; Sub-bab 12pt bold left-aligned
         if (line.startsWith('# ')) {
-          bodyHtml += `<h1 style="font-size: 16pt; font-weight: bold; text-align: center; margin-top: 14pt; margin-bottom: 6pt; line-height: 1.15;">${line.slice(2).trim()}</h1>\n`
+          bodyHtml += `<h1 style="font-family: 'Times New Roman', Times, serif; font-size: 12pt; font-weight: bold; text-align: center; text-transform: uppercase; margin-top: 14pt; margin-bottom: 6pt; line-height: 1.15;"><span style="font-family: 'Times New Roman', Times, serif;">${line.slice(2).trim()}</span></h1>\n`
         } else if (line.startsWith('## ')) {
-          bodyHtml += `<h2 style="font-size: 14pt; font-weight: bold; margin-top: 12pt; margin-bottom: 4pt; line-height: 1.15;">${line.slice(3).trim()}</h2>\n`
+          bodyHtml += `<h2 style="font-family: 'Times New Roman', Times, serif; font-size: 12pt; font-weight: bold; margin-top: 12pt; margin-bottom: 4pt; line-height: 1.15;"><span style="font-family: 'Times New Roman', Times, serif;">${line.slice(3).trim()}</span></h2>\n`
         } else if (line.startsWith('### ')) {
-          bodyHtml += `<h3 style="font-size: 12pt; font-weight: bold; font-style: italic; margin-top: 10pt; margin-bottom: 2pt; line-height: 1.15;">${line.slice(4).trim()}</h3>\n`
+          bodyHtml += `<h3 style="font-family: 'Times New Roman', Times, serif; font-size: 12pt; font-weight: bold; font-style: italic; margin-top: 10pt; margin-bottom: 2pt; line-height: 1.15;"><span style="font-family: 'Times New Roman', Times, serif;">${line.slice(4).trim()}</span></h3>\n`
         } else if (line.startsWith('<img') || line.startsWith('<div')) {
           bodyHtml += line + '\n'
         } else if (line.startsWith('<p')) {
-          // If line starts with <p, ensure it has style="margin: 0; line-height: 1.15;"
           let pLine = line
           if (!pLine.includes('line-height')) {
-            pLine = pLine.replace(/<p\s+style="([^"]*)"/i, '<p style="margin: 0; line-height: 1.15; $1"')
+            pLine = pLine.replace(/<p\s+style="([^"]*)"/i, '<p style="font-family: \'Times New Roman\', Times, serif; margin: 0; line-height: 1.15; $1"')
           }
           bodyHtml += pLine + '\n'
         } else {
@@ -521,11 +520,11 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
             .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
             .replace(/\*(.*?)\*/g, '<i>$1</i>')
           if (isFigure) {
-            bodyHtml += `<p style="text-align: center; font-size: 11pt; font-style: italic; font-weight: normal; margin-top: 4pt; margin-bottom: 8pt; line-height: 1.15; color: #1e293b;">${formatted}</p>\n`
+            bodyHtml += `<p style="font-family: 'Times New Roman', Times, serif; text-align: center; font-size: 11pt; font-style: italic; font-weight: normal; margin-top: 4pt; margin-bottom: 8pt; line-height: 1.15; color: #1e293b;"><span style="font-family: 'Times New Roman', Times, serif;">${formatted}</span></p>\n`
           } else if (isTable) {
-            bodyHtml += `<p style="text-align: center; font-size: 11pt; font-style: italic; font-weight: normal; margin-top: 8pt; margin-bottom: 2pt; line-height: 1.15; color: #1e293b;">${formatted}</p>\n`
+            bodyHtml += `<p style="font-family: 'Times New Roman', Times, serif; text-align: center; font-size: 11pt; font-style: italic; font-weight: normal; margin-top: 8pt; margin-bottom: 2pt; line-height: 1.15; color: #1e293b;"><span style="font-family: 'Times New Roman', Times, serif;">${formatted}</span></p>\n`
           } else {
-            bodyHtml += `<p style="margin-top: 0pt; margin-bottom: 0pt; text-indent: 1cm; line-height: 1.15; text-align: justify; font-size: 12pt;">${formatted}</p>\n`
+            bodyHtml += `<p style="font-family: 'Times New Roman', Times, serif; margin-top: 0pt; margin-bottom: 0pt; text-indent: 1cm; line-height: 1.15; text-align: justify; font-size: 12pt;"><span style="font-family: 'Times New Roman', Times, serif;">${formatted}</span></p>\n`
           }
         }
       }
@@ -537,17 +536,19 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
 <meta charset="utf-8">
 <title>${draftTitle}</title>
 <style>
-body, p, div { font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.15; text-align: justify; color: #000; margin-top: 0pt; margin-bottom: 0pt; }
-h1 { font-size: 16pt; font-weight: bold; text-align: center; margin-top: 14pt; margin-bottom: 6pt; line-height: 1.15; }
-h2 { font-size: 14pt; font-weight: bold; margin-top: 12pt; margin-bottom: 4pt; line-height: 1.15; }
+@page { size: A4; margin: 3cm 3cm 3cm 4cm; }
+body, p, div, span, table, th, td, h1, h2, h3, h4 { font-family: 'Times New Roman', Times, serif !important; color: #000; }
+body, p, div { font-size: 12pt; line-height: 1.15; text-align: justify; margin-top: 0pt; margin-bottom: 0pt; }
+h1 { font-size: 12pt; font-weight: bold; text-align: center; text-transform: uppercase; margin-top: 14pt; margin-bottom: 6pt; line-height: 1.15; }
+h2 { font-size: 12pt; font-weight: bold; margin-top: 12pt; margin-bottom: 4pt; line-height: 1.15; }
 h3 { font-size: 12pt; font-weight: bold; font-style: italic; margin-top: 10pt; margin-bottom: 2pt; line-height: 1.15; }
 table { border-collapse: collapse; width: 100%; margin-top: 4pt; margin-bottom: 12pt; font-family: 'Times New Roman', serif; font-size: 11pt; }
-th, td { border: 1px solid #1e293b; padding: 5px 8px; line-height: 1.15; }
+th, td { border: 1px solid #1e293b; padding: 5px 8px; line-height: 1.15; font-size: 11pt; }
 th { background-color: #f1f5f9; font-weight: bold; text-align: center; }
 img { max-width: 500px; height: auto; display: block; margin: 0 auto; }
 </style>
 </head>
-<body style="margin: 40px;">
+<body style="font-family: 'Times New Roman', Times, serif; margin: 40px;">
 ${bodyHtml}
 </body>
 </html>`
@@ -1126,12 +1127,12 @@ ${bodyHtml}
                   return pages.map((pageText, pIdx) => (
                     <div
                       key={pIdx}
-                      style={{ width: '820px', minHeight: '1120px' }}
-                      className="relative flex flex-col justify-between rounded-sm bg-white px-14 pt-14 pb-10 text-[#111827] shadow-xl ring-1 ring-black/10 font-serif text-[12pt] leading-[1.15] text-justify"
+                      style={{ width: '794px', minHeight: '1123px' }}
+                      className="relative flex flex-col justify-between rounded-sm bg-white px-12 pt-12 pb-10 text-[#111827] shadow-xl ring-1 ring-black/10 font-serif text-[12pt] leading-[1.15] text-justify"
                     >
                       {/* Page Body Content */}
                       <div className="flex-1">
-                        <Markdown content={pageText} className="space-y-2 text-gray-950 font-serif" />
+                        <Markdown content={pageText} className="space-y-1.5 text-gray-950 font-serif" />
                       </div>
 
                       {/* Official Academic Page Footer (Nomor Halaman Rata Tengah Bawah) */}

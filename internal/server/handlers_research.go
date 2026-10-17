@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -284,6 +285,66 @@ func (s *Server) handleGDocsExport(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, fmt.Errorf("parse drive response: %w", err))
 		return
 	}
+
+	// Post-creation enforcement: Call Google Docs REST API to ensure 100% Times New Roman across the entire document
+	go func(docID, authToken string) {
+		gdocsReqURL := fmt.Sprintf("https://docs.googleapis.com/v1/documents/%s", url.PathEscape(docID))
+		infoReq, err := http.NewRequest("GET", gdocsReqURL, nil)
+		if err != nil {
+			return
+		}
+		infoReq.Header.Set("Authorization", "Bearer "+authToken)
+		c := &http.Client{Timeout: 15 * time.Second}
+		infoResp, err := c.Do(infoReq)
+		if err != nil {
+			return
+		}
+		defer infoResp.Body.Close()
+
+		var gdoc struct {
+			Body struct {
+				Content []struct {
+					EndIndex int `json:"endIndex"`
+				} `json:"content"`
+			} `json:"body"`
+		}
+		if err := json.NewDecoder(infoResp.Body).Decode(&gdoc); err != nil || len(gdoc.Body.Content) == 0 {
+			return
+		}
+		lastIndex := gdoc.Body.Content[len(gdoc.Body.Content)-1].EndIndex
+		if lastIndex <= 1 {
+			return
+		}
+
+		batchReq := map[string]any{
+			"requests": []map[string]any{
+				{
+					"updateTextStyle": map[string]any{
+						"range": map[string]any{
+							"startIndex": 1,
+							"endIndex":   lastIndex - 1,
+						},
+						"textStyle": map[string]any{
+							"weightedFontFamily": map[string]any{
+								"fontFamily": "Times New Roman",
+							},
+						},
+						"fields": "weightedFontFamily",
+					},
+				},
+			},
+		}
+		bBytes, _ := json.Marshal(batchReq)
+		upReq, err := http.NewRequest("POST", fmt.Sprintf("https://docs.googleapis.com/v1/documents/%s:batchUpdate", url.PathEscape(docID)), bytes.NewReader(bBytes))
+		if err == nil {
+			upReq.Header.Set("Authorization", "Bearer "+authToken)
+			upReq.Header.Set("Content-Type", "application/json")
+			upResp, err := c.Do(upReq)
+			if err == nil {
+				upResp.Body.Close()
+			}
+		}
+	}(driveResp.ID, token)
 
 	docURL := fmt.Sprintf("https://docs.google.com/document/d/%s/edit", driveResp.ID)
 
