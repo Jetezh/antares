@@ -1150,7 +1150,7 @@ ${bodyHtml}
                     >
                       {/* Page Body Content */}
                       <div className="flex-1">
-                        <Markdown content={pageText} className="space-y-1.5 text-gray-950 font-serif" />
+                        <Markdown content={pageText} academicMode={true} className="space-y-1.5 text-gray-950 font-serif" />
                       </div>
 
                       {/* Official Academic Page Footer (Nomor Halaman Rata Tengah Bawah) */}

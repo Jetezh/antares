@@ -17,7 +17,15 @@ import { getToken } from '@/lib/api'
  * A small, dependency-free Markdown renderer covering what agent replies
  * actually use: fenced code, headings, lists, tables, quotes, images, and inline marks.
  */
-export function Markdown({ content, className }: { content: string; className?: string }) {
+export function Markdown({
+  content,
+  className,
+  academicMode = false,
+}: {
+  content: string
+  className?: string
+  academicMode?: boolean
+}) {
   const blocks = useMemo(() => parseBlocks(content), [content])
   return (
     <div className={cn('space-y-2.5', className)}>
@@ -25,7 +33,7 @@ export function Markdown({ content, className }: { content: string; className?: 
         block.type === 'code' ? (
           <CodeBlock key={i} code={block.code} lang={block.lang} />
         ) : (
-          <RichBlock key={i} block={block} />
+          <RichBlock key={i} block={block} academicMode={academicMode} />
         ),
       )}
     </div>
@@ -266,55 +274,82 @@ function EmbeddedImage({ alt, url }: { alt: string; url: string }) {
   )
 }
 
-function RichBlock({ block }: { block: Block }) {
+function RichBlock({ block, academicMode = false }: { block: Block; academicMode?: boolean }) {
   switch (block.type) {
     case 'heading': {
-      // Academic standard: Bab (H1) is 12pt bold centered uppercase; Sub-bab (H2, H3) is 12pt bold left-aligned
-      if (block.level === 1) {
+      if (academicMode) {
+        if (block.level === 1) {
+          return (
+            <h1 className="mt-4 mb-2 text-center font-serif text-[12pt] font-bold uppercase tracking-wide text-gray-950">
+              <Inline text={block.text} />
+            </h1>
+          )
+        }
+        if (block.level === 2) {
+          return (
+            <h2 className="mt-3.5 mb-1.5 text-left font-serif text-[12pt] font-bold text-gray-950">
+              <Inline text={block.text} />
+            </h2>
+          )
+        }
+        if (block.level === 3) {
+          return (
+            <h3 className="mt-3 mb-1 text-left font-serif text-[12pt] font-bold italic text-gray-900">
+              <Inline text={block.text} />
+            </h3>
+          )
+        }
         return (
-          <h1 className="mt-4 mb-2 text-center font-serif text-[12pt] font-bold uppercase tracking-wide text-gray-950">
+          <h4 className="mt-2.5 mb-1 text-left font-serif text-[12pt] font-medium text-gray-900">
             <Inline text={block.text} />
-          </h1>
+          </h4>
         )
       }
-      if (block.level === 2) {
-        return (
-          <h2 className="mt-3.5 mb-1.5 text-left font-serif text-[12pt] font-bold text-gray-950">
-            <Inline text={block.text} />
-          </h2>
-        )
-      }
-      if (block.level === 3) {
-        return (
-          <h3 className="mt-3 mb-1 text-left font-serif text-[12pt] font-bold italic text-gray-900">
-            <Inline text={block.text} />
-          </h3>
-        )
-      }
+      const sizes = ['text-lg', 'text-base', 'text-sm', 'text-sm', 'text-sm', 'text-sm']
       return (
-        <h4 className="mt-2.5 mb-1 text-left font-serif text-[12pt] font-medium text-gray-900">
+        <p className={cn('font-medium tracking-tight', sizes[block.level - 1])}>
           <Inline text={block.text} />
-        </h4>
+        </p>
       )
     }
     case 'list': {
-      const indentClasses = ['pl-5', 'pl-11', 'pl-16', 'pl-20', 'pl-24']
-      return (
-        <div className="space-y-1 my-1.5 font-serif text-[12pt] leading-[1.15] text-gray-950">
-          {block.items.map((it, idx) => {
-            const indClass = indentClasses[Math.min(it.level, indentClasses.length - 1)]
-            return (
-              <div key={idx} className={cn('flex items-baseline gap-2', indClass)}>
-                <span className="shrink-0 select-none font-mono text-[11pt] text-gray-700">
-                  {it.ordered ? `${idx + 1}.` : '•'}
-                </span>
-                <span className="flex-1 leading-[1.15]">
-                  <Inline text={it.text} />
-                </span>
-              </div>
-            )
-          })}
-        </div>
+      if (academicMode) {
+        const indentClasses = ['pl-5', 'pl-11', 'pl-16', 'pl-20', 'pl-24']
+        return (
+          <div className="space-y-1 my-1.5 font-serif text-[12pt] leading-[1.15] text-gray-950">
+            {block.items.map((it, idx) => {
+              const indClass = indentClasses[Math.min(it.level, indentClasses.length - 1)]
+              return (
+                <div key={idx} className={cn('flex items-baseline gap-2', indClass)}>
+                  <span className="shrink-0 select-none font-mono text-[11pt] text-gray-700">
+                    {it.ordered ? `${idx + 1}.` : '•'}
+                  </span>
+                  <span className="flex-1 leading-[1.15]">
+                    <Inline text={it.text} />
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        )
+      }
+      const isOrdered = block.items.length > 0 && block.items[0].ordered
+      return isOrdered ? (
+        <ol className="list-decimal space-y-1 pl-5">
+          {block.items.map((it, i) => (
+            <li key={i}>
+              <Inline text={it.text} />
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <ul className="list-disc space-y-1 pl-5">
+          {block.items.map((it, i) => (
+            <li key={i}>
+              <Inline text={it.text} />
+            </li>
+          ))}
+        </ul>
       )
     }
     case 'svg':
@@ -346,43 +381,79 @@ function RichBlock({ block }: { block: Block }) {
         </div>
       )
     case 'table': {
-      // Calculate proportional column weights based on content lengths
-      const numCols = block.header.length
-      const colLengths = new Array(numCols).fill(0)
-      block.header.forEach((h, i) => {
-        colLengths[i] = Math.max(colLengths[i], h.trim().length)
-      })
-      block.rows.forEach((row) => {
-        row.forEach((c, i) => {
-          if (i < numCols) {
-            colLengths[i] = Math.max(colLengths[i], c.trim().length)
-          }
+      if (academicMode) {
+        // Calculate proportional column weights based on content lengths
+        const numCols = block.header.length
+        const colLengths = new Array(numCols).fill(0)
+        block.header.forEach((h, i) => {
+          colLengths[i] = Math.max(colLengths[i], h.trim().length)
         })
-      })
+        block.rows.forEach((row) => {
+          row.forEach((c, i) => {
+            if (i < numCols) {
+              colLengths[i] = Math.max(colLengths[i], c.trim().length)
+            }
+          })
+        })
 
-      // Normalize weights
-      const totalLen = colLengths.reduce((a, b) => a + b, 0) || 1
-      const colWidths = colLengths.map((len, idx) => {
-        // Narrow columns for "No" or short identifiers
-        const hName = block.header[idx]?.trim().toLowerCase()
-        if (hName === 'no' || hName === 'no.' || hName === '#') {
-          return '6%'
-        }
-        const pct = Math.max(12, Math.round((len / totalLen) * 100))
-        return `${pct}%`
-      })
+        const totalLen = colLengths.reduce((a, b) => a + b, 0) || 1
+        const colWidths = colLengths.map((len, idx) => {
+          const hName = block.header[idx]?.trim().toLowerCase()
+          if (hName === 'no' || hName === 'no.' || hName === '#') {
+            return '6%'
+          }
+          const pct = Math.max(12, Math.round((len / totalLen) * 100))
+          return `${pct}%`
+        })
 
+        return (
+          <div className="my-3 overflow-x-auto">
+            <table className="w-full border-collapse border border-slate-700/60 text-xs text-foreground bg-background table-auto">
+              <thead>
+                <tr className="border-b border-slate-700/60 bg-muted/50">
+                  {block.header.map((h, i) => (
+                    <th
+                      key={i}
+                      style={{ width: colWidths[i] }}
+                      className="border border-slate-700/60 px-3 py-2 text-center font-bold text-foreground"
+                    >
+                      <Inline text={h} />
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {block.rows.map((row, r) => (
+                  <tr key={r} className="border-b border-slate-700/40 hover:bg-muted/10">
+                    {row.map((c, i) => {
+                      const isCenter = i === 0 && (block.header[0]?.toLowerCase().includes('no') || c.length <= 4)
+                      return (
+                        <td
+                          key={i}
+                          style={{ width: colWidths[i] }}
+                          className={cn(
+                            'border border-slate-700/60 px-3 py-2 align-middle text-foreground leading-relaxed',
+                            isCenter ? 'text-center' : 'text-left',
+                          )}
+                        >
+                          <Inline text={c} />
+                        </td>
+                      )
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      }
       return (
-        <div className="my-3 overflow-x-auto">
-          <table className="w-full border-collapse border border-slate-700/60 text-xs text-foreground bg-background table-auto">
+        <div className="overflow-x-auto rounded-[var(--radius-lg)] border border-border bg-card">
+          <table className="w-full text-xs">
             <thead>
-              <tr className="border-b border-slate-700/60 bg-muted/50">
+              <tr>
                 {block.header.map((h, i) => (
-                  <th
-                    key={i}
-                    style={{ width: colWidths[i] }}
-                    className="border border-slate-700/60 px-3 py-2 text-center font-bold text-foreground"
-                  >
+                  <th key={i} className="border-b border-border px-3 py-2 text-left font-mono text-[11px] font-normal lowercase tracking-[0.04em] whitespace-nowrap text-dim">
                     <Inline text={h} />
                   </th>
                 ))}
@@ -390,22 +461,12 @@ function RichBlock({ block }: { block: Block }) {
             </thead>
             <tbody>
               {block.rows.map((row, r) => (
-                <tr key={r} className="border-b border-slate-700/40 hover:bg-muted/10">
-                  {row.map((c, i) => {
-                    const isCenter = i === 0 && (block.header[0]?.toLowerCase().includes('no') || c.length <= 4)
-                    return (
-                      <td
-                        key={i}
-                        style={{ width: colWidths[i] }}
-                        className={cn(
-                          'border border-slate-700/60 px-3 py-2 align-middle text-foreground leading-relaxed',
-                          isCenter ? 'text-center' : 'text-left',
-                        )}
-                      >
-                        <Inline text={c} />
-                      </td>
-                    )
-                  })}
+                <tr key={r} className="border-t border-border first:border-t-0 hover:bg-raised">
+                  {row.map((c, i) => (
+                    <td key={i} className="px-3 py-2 align-top">
+                      <Inline text={c} />
+                    </td>
+                  ))}
                 </tr>
               ))}
             </tbody>
@@ -414,25 +475,32 @@ function RichBlock({ block }: { block: Block }) {
       )
     }
     case 'paragraph': {
-      const trimmed = block.text.trim()
-      const isFigure = /^\*?(Gambar|Figure)\s+\d+[\d.]*[:\s]/.test(trimmed)
-      const isTable = /^\*?(Tabel|Table)\s+\d+[\d.]*[:\s]/.test(trimmed)
-      if (isFigure) {
+      if (academicMode) {
+        const trimmed = block.text.trim()
+        const isFigure = /^\*?(Gambar|Figure)\s+\d+[\d.]*[:\s]/.test(trimmed)
+        const isTable = /^\*?(Tabel|Table)\s+\d+[\d.]*[:\s]/.test(trimmed)
+        if (isFigure) {
+          return (
+            <p className="my-1.5 text-center font-serif text-[11pt] font-normal italic leading-snug text-gray-700">
+              <Inline text={block.text} />
+            </p>
+          )
+        }
+        if (isTable) {
+          return (
+            <p className="mt-3 mb-1 text-center font-serif text-[11pt] font-normal italic leading-snug text-gray-800">
+              <Inline text={block.text} />
+            </p>
+          )
+        }
         return (
-          <p className="my-1.5 text-center font-serif text-[11pt] font-normal italic leading-snug text-gray-700">
-            <Inline text={block.text} />
-          </p>
-        )
-      }
-      if (isTable) {
-        return (
-          <p className="mt-3 mb-1 text-center font-serif text-[11pt] font-normal italic leading-snug text-gray-800">
+          <p className="my-1 whitespace-pre-wrap break-words font-serif text-[12pt] leading-[1.15] text-gray-950">
             <Inline text={block.text} />
           </p>
         )
       }
       return (
-        <p className="my-1 whitespace-pre-wrap break-words font-serif text-[12pt] leading-[1.15] text-gray-950">
+        <p className="whitespace-pre-wrap break-words">
           <Inline text={block.text} />
         </p>
       )
