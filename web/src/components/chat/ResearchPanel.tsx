@@ -467,7 +467,13 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
             const isCenter = rIdx === 0 || (cIdx === 0 && (tableRows[0][0]?.toLowerCase().includes('no') || cell.trim().length <= 4))
             const align = isCenter ? 'text-align: center;' : 'text-align: left;'
             const bg = rIdx === 0 ? 'background-color: #f1f5f9; font-weight: bold;' : ''
-            bodyHtml += `    <${tag} style="border: 1px solid #1e293b; padding: 5px 8px; font-size: 11pt; line-height: 1.15; width: ${colWidths[cIdx]}; ${align} ${bg}">${cell.trim()}</${tag}>\n`
+            
+            // Format inline bold & italic inside table cells
+            const formattedCell = cell.trim()
+              .replace(/\*\*([\s\S]*?)\*\*/g, '<b style="font-weight: 700; font-family: \'Times New Roman\', Times, serif;">$1</b>')
+              .replace(/\*([\s\S]*?)\*/g, '<i style="font-family: \'Times New Roman\', Times, serif;">$1</i>')
+              
+            bodyHtml += `    <${tag} style="border: 1px solid #1e293b; padding: 5px 8px; font-size: 11pt; line-height: 1.15; width: ${colWidths[cIdx]}; ${align} ${bg}"><span style="font-family: 'Times New Roman', Times, serif;">${formattedCell}</span></${tag}>\n`
           })
           bodyHtml += '  </tr>\n'
         })
@@ -476,16 +482,30 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
         tableRows = []
       }
 
+      let inList = false
+      let listIsOrdered = false
+      let listItemsHtml = ''
+
+      const flushList = () => {
+        if (!inList) return
+        const listTag = listIsOrdered ? 'ol' : 'ul'
+        bodyHtml += `<${listTag} style="margin-top: 4pt; margin-bottom: 6pt; padding-left: 1cm; font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.15;">\n${listItemsHtml}</${listTag}>\n`
+        inList = false
+        listItemsHtml = ''
+      }
+
       for (let i = 0; i < lines.length; i++) {
         const rawLine = lines[i]
         const line = rawLine.trim()
         if (!line) {
           if (inTable) flushTable()
+          if (inList) flushList()
           continue
         }
 
         // Table detection
         if (line.includes('|') && i + 1 < lines.length && /^\s*\|?[\s:|-]+\|[\s:|-]*$/.test(lines[i + 1])) {
+          if (inList) flushList()
           inTable = true
           const parseRow = (l: string) => l.replace(/^\s*\|/, '').replace(/\|\s*$/, '').split('|')
           tableRows.push(parseRow(line))
@@ -505,15 +525,26 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
           const indentSpaces = listMatch[1].replace(/\t/g, '  ').length
           const level = Math.floor(indentSpaces / 2)
           const isOrdered = /\d/.test(listMatch[2])
+
+          if (!inList) {
+            inList = true
+            listIsOrdered = isOrdered
+          } else if (listIsOrdered !== isOrdered && level === 0) {
+            flushList()
+            inList = true
+            listIsOrdered = isOrdered
+          }
+
           const content = listMatch[3]
             .replace(/\*\*([\s\S]*?)\*\*/g, '<b style="font-weight: 700; font-family: \'Times New Roman\', Times, serif;">$1</b>')
             .replace(/\*([\s\S]*?)\*/g, '<i style="font-family: \'Times New Roman\', Times, serif;">$1</i>')
 
-          const marginL = 1 + level * 0.8
-          const listStyle = isOrdered ? 'list-style-type: decimal;' : 'list-style-type: disc;'
-          bodyHtml += `<ul style="${listStyle} margin-top: 2pt; margin-bottom: 2pt; padding-left: ${marginL}cm; font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.15;"><li style="margin-top: 0pt; margin-bottom: 0pt; line-height: 1.15;"><span style="font-family: 'Times New Roman', Times, serif;">${content}</span></li></ul>\n`
+          const marginL = level > 0 ? ` style="margin-left: ${level * 0.7}cm;"` : ''
+          listItemsHtml += `  <li${marginL} style="margin-top: 2pt; margin-bottom: 2pt; line-height: 1.15;"><span style="font-family: 'Times New Roman', Times, serif;">${content}</span></li>\n`
           continue
         }
+
+        if (inList) flushList()
 
         // Headings: Academic rule: Bab 12pt bold centered uppercase; Sub-bab 12pt bold left-aligned
         if (line.startsWith('# ')) {
@@ -547,6 +578,7 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
         }
       }
       if (inTable) flushTable()
+      if (inList) flushList()
 
       const fullHtml = `<!DOCTYPE html>
 <html>
