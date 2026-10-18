@@ -11,6 +11,7 @@ import {
   CheckCircle,
   CloudArrowUp,
   Copy,
+  Eye,
   FileCode,
   FileText,
   FloppyDisk,
@@ -1093,106 +1094,110 @@ ${bodyHtml}
             </div>
 
             <div className="flex items-center gap-1.5">
-              {/* Mode Toggle: Edit vs Preview */}
-              <div className="flex items-center rounded-[var(--radius-md)] border border-border bg-card/60 p-0.5 text-[11px]">
+              {/* Mode Toggle: Edit vs Preview (Consistent Pill Icon Buttons) */}
+              <div className="flex items-center rounded-[var(--radius-md)] border border-border bg-card/60 p-0.5">
                 <button
                   type="button"
                   onClick={() => setDraftViewMode('edit')}
                   className={cn(
-                    'px-2 py-0.5 rounded-[var(--radius-sm)] transition-colors',
+                    'p-1.5 rounded-[var(--radius-sm)] transition-colors',
                     draftViewMode === 'edit'
                       ? 'bg-primary text-primary-foreground font-medium'
                       : 'text-muted-foreground hover:text-foreground',
                   )}
+                  title={t('research.modeEdit')}
+                  aria-label={t('research.modeEdit')}
                 >
-                  {t('research.modeEdit')}
+                  <PencilSimple className="size-3.5" />
                 </button>
                 <button
                   type="button"
                   onClick={() => setDraftViewMode('preview')}
                   className={cn(
-                    'px-2 py-0.5 rounded-[var(--radius-sm)] transition-colors',
+                    'p-1.5 rounded-[var(--radius-sm)] transition-colors',
                     draftViewMode === 'preview'
                       ? 'bg-primary text-primary-foreground font-medium'
                       : 'text-muted-foreground hover:text-foreground',
                   )}
+                  title={t('research.modePreview')}
+                  aria-label={t('research.modePreview')}
                 >
-                  {t('research.modePreview')}
+                  <Eye className="size-3.5" />
                 </button>
               </div>
 
-              {/* Action: Export to Google Docs (Opens confirmation & UX guide dialog) */}
+              {/* Action: Export to Google Docs (Icon-only with clear tooltip) */}
               <Button
-                size="sm"
+                size="icon-sm"
                 onClick={() => setExportModalOpen(true)}
-                className="h-8 gap-1.5 bg-emerald-600 px-3 text-xs text-white hover:bg-emerald-700"
+                className="h-8 w-8 bg-emerald-600 text-white hover:bg-emerald-700 shrink-0"
                 title={t('research.exportGdocs')}
+                aria-label={t('research.exportGdocs')}
               >
                 <CloudArrowUp className="size-4" />
-                <span>{t('research.exportGdocs')}</span>
               </Button>
 
-              {/* Two-Way Sync Buttons (When linked to a Google Doc) */}
+              {/* Two-Way Sync Buttons (When linked to a Google Doc - Icon-only with tooltip) */}
               {docUrl ? (
-                <div className="flex items-center gap-1 rounded-[var(--radius-md)] border border-border bg-card/60 p-0.5">
+                <div className="flex items-center gap-0.5 rounded-[var(--radius-md)] border border-border bg-card/60 p-0.5">
                   <Button
-                    size="sm"
+                    size="icon-sm"
                     variant="ghost"
                     onClick={handleSyncPush}
                     disabled={syncPushing}
                     className={cn(
-                      'h-7 gap-1 px-2 text-[11px] transition-colors',
+                      'h-7 w-7 transition-colors',
                       syncPushSuccess ? 'text-emerald-500 font-semibold' : 'text-muted-foreground hover:text-foreground',
                     )}
-                    title="Perbarui isi Google Docs mengikuti revisi draf naskah ini (Push)"
+                    title={syncPushing ? t('research.syncPushing') : 'Perbarui isi Google Docs mengikuti draf naskah ini (Push)'}
+                    aria-label="Push to Google Docs"
                   >
                     {syncPushing ? (
-                      <Spinner className="size-3 animate-spin" />
+                      <Spinner className="size-3.5 animate-spin" />
                     ) : syncPushSuccess ? (
-                      <Check className="size-3 text-emerald-500" />
+                      <Check className="size-3.5 text-emerald-500" />
                     ) : (
-                      <ArrowUp className="size-3" />
+                      <ArrowUp className="size-3.5" />
                     )}
-                    <span>{syncPushing ? t('research.syncPushing') : t('research.syncPush')}</span>
                   </Button>
 
                   <Button
-                    size="sm"
+                    size="icon-sm"
                     variant="ghost"
                     onClick={handleSyncPull}
                     disabled={syncPulling}
                     className={cn(
-                      'h-7 gap-1 px-2 text-[11px] transition-colors',
+                      'h-7 w-7 transition-colors',
                       syncPullSuccess ? 'text-emerald-500 font-semibold' : 'text-muted-foreground hover:text-foreground',
                     )}
-                    title="Tarik perubahan terbaru yang diedit oleh tim di Google Docs ke draf naskah (Pull)"
+                    title={syncPulling ? t('research.syncPulling') : 'Tarik perubahan terbaru yang diedit oleh tim di Google Docs ke draf naskah (Pull)'}
+                    aria-label="Pull from Google Docs"
                   >
                     {syncPulling ? (
-                      <Spinner className="size-3 animate-spin" />
+                      <Spinner className="size-3.5 animate-spin" />
                     ) : syncPullSuccess ? (
-                      <Check className="size-3 text-emerald-500" />
+                      <Check className="size-3.5 text-emerald-500" />
                     ) : (
-                      <ArrowDown className="size-3" />
+                      <ArrowDown className="size-3.5" />
                     )}
-                    <span>{syncPulling ? t('research.syncPulling') : t('research.syncPull')}</span>
                   </Button>
                 </div>
               ) : null}
 
               {onInsertToChat ? (
                 <Button
-                  size="sm"
+                  size="icon-sm"
                   variant="outline"
-                  className="h-8 gap-1 text-xs text-primary"
+                  className="h-8 w-8 text-primary shrink-0"
                   onClick={() => {
                     onInsertToChat(
                       `Berikut adalah draf ${draftTitle}:\n\n\`\`\`markdown\n${draftContent}\n\`\`\`\n\nMohon bantu revisi/lengkapi naskah ini (tambahkan diagram/flowchart atau tabel jika relevan).`,
                     )
                   }}
                   title="Minta Agen Menulis / Merevisi Draf Ini"
+                  aria-label="Minta Agen Tulis"
                 >
-                  <PencilSimple className="size-3.5" />
-                  <span className="hidden sm:inline">Minta Agen Tulis</span>
+                  <Article className="size-3.5" />
                 </Button>
               ) : null}
 
@@ -1202,6 +1207,7 @@ ${bodyHtml}
                 className="h-8 w-8 shrink-0"
                 onClick={() => setDraftSearchOpen(!draftSearchOpen)}
                 title="Cari kata di draf (Ctrl+F)"
+                aria-label="Cari kata di draf"
               >
                 <MagnifyingGlass className="size-3.5" />
               </Button>
@@ -1365,16 +1371,36 @@ ${bodyHtml}
             </Button>
             {docUrl ? (
               <>
-                <div className="flex items-center gap-1.5 rounded-[var(--radius-md)] border border-border bg-card/60 px-2 py-1">
-                  <PencilSimple className="size-3.5 text-muted-foreground" />
-                  <span className="text-[11px] font-medium text-foreground">
-                    {docViewMode === 'edit' ? t('research.modeEdit') : t('research.modePreview')}
-                  </span>
-                  <Switch
-                    checked={docViewMode === 'edit'}
-                    onCheckedChange={(checked) => setDocViewMode(checked ? 'edit' : 'preview')}
+                {/* Mode Toggle: Edit vs Preview (Identical Consistent Pill Icon Style) */}
+                <div className="flex items-center rounded-[var(--radius-md)] border border-border bg-card/60 p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setDocViewMode('edit')}
+                    className={cn(
+                      'p-1.5 rounded-[var(--radius-sm)] transition-colors',
+                      docViewMode === 'edit'
+                        ? 'bg-primary text-primary-foreground font-medium'
+                        : 'text-muted-foreground hover:text-foreground',
+                    )}
+                    title={t('research.modeEdit')}
                     aria-label={t('research.modeEdit')}
-                  />
+                  >
+                    <PencilSimple className="size-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDocViewMode('preview')}
+                    className={cn(
+                      'p-1.5 rounded-[var(--radius-sm)] transition-colors',
+                      docViewMode === 'preview'
+                        ? 'bg-primary text-primary-foreground font-medium'
+                        : 'text-muted-foreground hover:text-foreground',
+                    )}
+                    title={t('research.modePreview')}
+                    aria-label={t('research.modePreview')}
+                  >
+                    <Eye className="size-3.5" />
+                  </button>
                 </div>
                 <Button
                   size="icon-sm"
