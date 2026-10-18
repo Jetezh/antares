@@ -618,12 +618,12 @@ export default function ChatPage() {
     [],
   )
 
-  // Grow the composer with its content, up to ~8 rows.
+  // Adjust height on initial mount or programmatic resets (e.g. send/clear)
   useEffect(() => {
-    const el = textareaRef.current
-    if (!el) return
-    el.style.height = 'auto'
-    el.style.height = `${Math.min(el.scrollHeight, 200)}px`
+    if (!input) {
+      const el = textareaRef.current
+      if (el) el.style.height = 'auto'
+    }
   }, [input])
 
   const stop = useCallback(() => {
@@ -1208,6 +1208,15 @@ export default function ChatPage() {
     setInput(value)
   }, [historyPos])
 
+  const handleCloseResearchSplit = useCallback(() => {
+    setResearchSplitOpen(false)
+  }, [])
+
+  const handleInsertDraftToChat = useCallback((text: string) => {
+    setInput(text)
+    textareaRef.current?.focus()
+  }, [])
+
   // Virtuoso's `components` must keep a stable identity: a new Footer type
   // unmounts and remounts the footer, resizing the scroller under itself. The
   // footer is one component for the page's life and gets its data through
@@ -1585,11 +1594,8 @@ export default function ChatPage() {
           >
             <ResearchPanel
               refreshKey={sidebarRefresh}
-              onClose={() => setResearchSplitOpen(false)}
-              onInsertToChat={(text) => {
-                setInput(text)
-                textareaRef.current?.focus()
-              }}
+              onClose={handleCloseResearchSplit}
+              onInsertToChat={handleInsertDraftToChat}
             />
           </div>
         </>
@@ -1723,7 +1729,12 @@ const Composer = ({
           ref={ref}
           rows={1}
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => {
+            const el = e.target
+            el.style.height = 'auto'
+            el.style.height = `${Math.min(el.scrollHeight, 200)}px`
+            onChange(el.value)
+          }}
           onKeyDown={onKeyDown}
           onPaste={onPaste}
           placeholder={placeholder}

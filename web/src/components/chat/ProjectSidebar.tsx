@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import {
   CaretDown,
   FolderOpen,
@@ -61,7 +61,7 @@ interface SessionResp {
  */
 type Tab = 'info' | 'plan' | 'git' | 'changes' | 'files' | 'scripts' | 'tools'
 
-export function ProjectSidebar({
+export const ProjectSidebar = memo(function ProjectSidebar({
   projectDir,
   sessionId,
   refreshKey,
@@ -239,7 +239,7 @@ export function ProjectSidebar({
       <EnvDialog open={envOpen} onOpenChange={setEnvOpen} projectDir={projectDir} />
     </aside>
   )
-}
+})
 
 function PlanView({ plan }: { plan: PlanResp | null }) {
   const { t } = useI18n()

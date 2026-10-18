@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { memo, useEffect, useMemo, useState } from 'react'
 import {
   ArrowCounterClockwise,
   ArrowSquareOut,
@@ -289,7 +289,11 @@ Spesifikasi modul sistem Bilik dirinci pada tabel berikut:
 2. **Ketersediaan**: Sistem memiliki uptime target 99.9% dengan replikasi database berkala.
 `
 
-export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchPanelProps) {
+export const ResearchPanel = memo(function ResearchPanel({
+  refreshKey,
+  onClose,
+  onInsertToChat,
+}: ResearchPanelProps) {
   const { t } = useI18n()
   const [tab, setTab] = useState<'draft' | 'gdocs' | 'latex' | 'zotero'>('draft')
   const [docViewMode, setDocViewMode] = useState<'edit' | 'preview'>('edit')
@@ -343,6 +347,24 @@ export function ResearchPanel({ refreshKey, onClose, onInsertToChat }: ResearchP
       return draftContent
     }
   }, [draftContent, draftSearchQuery])
+
+  const a4Pages = useMemo(() => {
+    // Split content into simulated page sheets based on headings or length
+    const rawSections = highlightedDraftContent.split(/(?=\n##?\s+)/g)
+    const pages: string[] = []
+    let currentPage = ''
+
+    rawSections.forEach((sec) => {
+      if (currentPage && (currentPage.length > 2200 || sec.trim().startsWith('# '))) {
+        pages.push(currentPage)
+        currentPage = sec.trim()
+      } else {
+        currentPage = (currentPage ? currentPage + '\n\n' : '') + sec.trim()
+      }
+    })
+    if (currentPage) pages.push(currentPage)
+    return pages
+  }, [highlightedDraftContent])
 
   const handleDraftChange = (val: string) => {
     setDraftContent(val)
@@ -1173,42 +1195,24 @@ ${bodyHtml}
               />
             ) : (
               <div className="mx-auto flex flex-col items-center gap-6 pb-12">
-                {/* Visual A4 Page Sheets with Margins and Pagination */}
-                {(() => {
-                  // Split content into simulated page sheets based on headings or length
-                  const rawSections = highlightedDraftContent.split(/(?=\n##?\s+)/g)
-                  const pages: string[] = []
-                  let currentPage = ''
-
-                  rawSections.forEach((sec) => {
-                    // Start new page if current page has substantial content or section is a major # BAB
-                    if (currentPage && (currentPage.length > 2200 || sec.trim().startsWith('# '))) {
-                      pages.push(currentPage)
-                      currentPage = sec.trim()
-                    } else {
-                      currentPage = (currentPage ? currentPage + '\n\n' : '') + sec.trim()
-                    }
-                  })
-                  if (currentPage) pages.push(currentPage)
-
-                  return pages.map((pageText, pIdx) => (
-                    <div
-                      key={pIdx}
-                      style={{ width: '794px', minHeight: '1123px' }}
-                      className="relative flex flex-col justify-between rounded-sm bg-white px-12 pt-12 pb-10 text-[#111827] shadow-xl ring-1 ring-black/10 font-serif text-[12pt] leading-[1.15] text-justify"
-                    >
-                      {/* Page Body Content */}
-                      <div className="flex-1">
-                        <Markdown content={pageText} academicMode={true} className="space-y-1.5 text-gray-950 font-serif" />
-                      </div>
-
-                      {/* Official Academic Page Footer (Nomor Halaman Rata Tengah Bawah) */}
-                      <div className="mt-8 border-t border-gray-200/60 pt-3 text-center font-serif text-[10pt] text-gray-500 select-none">
-                        — {pIdx + 1} —
-                      </div>
+                {/* Visual A4 Page Sheets with Margins and Pagination (Memoized) */}
+                {a4Pages.map((pageText, pIdx) => (
+                  <div
+                    key={pIdx}
+                    style={{ width: '794px', minHeight: '1123px' }}
+                    className="relative flex flex-col justify-between rounded-sm bg-white px-12 pt-12 pb-10 text-[#111827] shadow-xl ring-1 ring-black/10 font-serif text-[12pt] leading-[1.15] text-justify"
+                  >
+                    {/* Page Body Content */}
+                    <div className="flex-1">
+                      <Markdown content={pageText} academicMode={true} className="space-y-1.5 text-gray-950 font-serif" />
                     </div>
-                  ))
-                })()}
+
+                    {/* Official Academic Page Footer (Nomor Halaman Rata Tengah Bawah) */}
+                    <div className="mt-8 border-t border-gray-200/60 pt-3 text-center font-serif text-[10pt] text-gray-500 select-none">
+                      — {pIdx + 1} —
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -2048,4 +2052,4 @@ ${bodyHtml}
       </Dialog>
     </div>
   )
-}
+})
