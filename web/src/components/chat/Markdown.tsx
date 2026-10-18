@@ -17,15 +17,7 @@ import { getToken } from '@/lib/api'
  * A small, dependency-free Markdown renderer covering what agent replies
  * actually use: fenced code, headings, lists, tables, quotes, images, and inline marks.
  */
-export function Markdown({
-  content,
-  className,
-  academicMode = false,
-}: {
-  content: string
-  className?: string
-  academicMode?: boolean
-}) {
+export function Markdown({ content, className }: { content: string; className?: string }) {
   const blocks = useMemo(() => parseBlocks(content), [content])
   return (
     <div className={cn('space-y-2.5', className)}>
@@ -33,25 +25,18 @@ export function Markdown({
         block.type === 'code' ? (
           <CodeBlock key={i} code={block.code} lang={block.lang} />
         ) : (
-          <RichBlock key={i} block={block} academicMode={academicMode} />
+          <RichBlock key={i} block={block} />
         ),
       )}
     </div>
   )
 }
 
-interface ListItem {
-  text: string
-  ordered: boolean
-  level: number
-}
-
 type Block =
   | { type: 'code'; code: string; lang: string }
   | { type: 'svg'; svg: string }
-  | { type: 'html'; html: string }
   | { type: 'heading'; level: number; text: string }
-  | { type: 'list'; items: ListItem[] }
+  | { type: 'list'; ordered: boolean; items: string[] }
   | { type: 'quote'; text: string }
   | { type: 'table'; header: string[]; rows: string[][] }
   | { type: 'rule' }
@@ -104,38 +89,6 @@ function parseBlocks(src: string): Block[] {
       continue
     }
 
-    // Standalone HTML block: <p ...> ... </p>, <div ...> ... </div>, etc.
-    if (/^\s*<(p|div|center|table|span|b|i|strong|em)[\s>]/.test(line)) {
-      const htmlLines: string[] = [line]
-      const tagMatch = /^\s*<(\w+)/.exec(line)
-      const tagName = tagMatch ? tagMatch[1] : ''
-      const closeTag = `</${tagName}>`
-      if (!line.includes(closeTag)) {
-        i++
-        while (
-          i < lines.length &&
-          lines[i].trim() &&
-          !lines[i].includes(closeTag) &&
-          !/^\s*(```|#{1,6}\s|\||!\[|<svg)/.test(lines[i])
-        ) {
-          htmlLines.push(lines[i])
-          i++
-        }
-        if (i < lines.length && lines[i].includes(closeTag)) {
-          htmlLines.push(lines[i])
-          i++
-        }
-      } else {
-        i++
-      }
-      let htmlStr = htmlLines.join('\n')
-      if (closeTag && !htmlStr.includes(closeTag)) {
-        htmlStr += closeTag
-      }
-      blocks.push({ type: 'html', html: htmlStr })
-      continue
-    }
-
     // Standalone image: ![alt](url)
     const imgBlock = /^\s*!\[([^\]]*)\]\(([^)]+)\)\s*$/.exec(line)
     if (imgBlock) {
@@ -180,38 +133,26 @@ function parseBlocks(src: string): Block[] {
       continue
     }
 
-    const bullet = /^(\s*)([-*+]|\d+[.)])\s+/.exec(line)
+    const bullet = /^\s*([-*+]|\d+[.)])\s+/.exec(line)
     if (bullet) {
-      const items: ListItem[] = []
+      const ordered = /\d/.test(bullet[1])
+      const items: string[] = []
       while (i < lines.length) {
-        const m = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/.exec(lines[i])
+        const m = /^\s*([-*+]|\d+[.)])\s+(.*)$/.exec(lines[i])
         if (!m) break
-        const indentSpaces = m[1].replace(/\t/g, '  ').length
-        const level = Math.floor(indentSpaces / 2)
-        const ordered = /\d/.test(m[2])
-        items.push({
-          text: m[3],
-          ordered,
-          level,
-        })
+        items.push(m[2])
         i++
       }
-      blocks.push({ type: 'list', items })
+      blocks.push({ type: 'list', ordered, items })
       continue
     }
 
     const para: string[] = []
-    while (
-      i < lines.length &&
-      lines[i].trim() &&
-      !/^\s*(```|#{1,6}\s|>|[-*+]\s|\d+[.)]\s|!\[|<svg|<(p|div|center|table|span|b|i|strong|em)|\|)/.test(lines[i])
-    ) {
+    while (i < lines.length && lines[i].trim() && !/^\s*(```|#{1,6}\s|>|[-*+]\s|\d+[.)]\s|!\[)/.test(lines[i])) {
       para.push(lines[i])
       i++
     }
-    if (para.length > 0) {
-      blocks.push({ type: 'paragraph', text: para.join('\n') })
-    }
+    blocks.push({ type: 'paragraph', text: para.join('\n') })
   }
 
   return blocks
@@ -267,44 +208,16 @@ function EmbeddedImage({ alt, url }: { alt: string; url: string }) {
       onClick={() => setExpanded(!expanded)}
       onError={() => setFailed(true)}
       className={cn(
-        'cursor-zoom-in object-contain transition-all',
-        expanded ? 'max-w-full' : 'max-h-64 max-w-lg mx-auto block',
+        'cursor-zoom-in rounded-[var(--radius-md)] border border-border object-contain transition-all',
+        expanded ? 'max-w-full' : 'max-h-48 max-w-xs',
       )}
     />
   )
 }
 
-function RichBlock({ block, academicMode = false }: { block: Block; academicMode?: boolean }) {
+function RichBlock({ block }: { block: Block }) {
   switch (block.type) {
     case 'heading': {
-      if (academicMode) {
-        if (block.level === 1) {
-          return (
-            <h1 className="mt-4 mb-2 text-center font-serif text-[12pt] font-bold uppercase tracking-wide text-gray-950">
-              <Inline text={block.text} />
-            </h1>
-          )
-        }
-        if (block.level === 2) {
-          return (
-            <h2 className="mt-3.5 mb-1.5 text-left font-serif text-[12pt] font-bold text-gray-950">
-              <Inline text={block.text} />
-            </h2>
-          )
-        }
-        if (block.level === 3) {
-          return (
-            <h3 className="mt-3 mb-1 text-left font-serif text-[12pt] font-bold italic text-gray-900">
-              <Inline text={block.text} />
-            </h3>
-          )
-        }
-        return (
-          <h4 className="mt-2.5 mb-1 text-left font-serif text-[12pt] font-medium text-gray-900">
-            <Inline text={block.text} />
-          </h4>
-        )
-      }
       const sizes = ['text-lg', 'text-base', 'text-sm', 'text-sm', 'text-sm', 'text-sm']
       return (
         <p className={cn('font-medium tracking-tight', sizes[block.level - 1])}>
@@ -312,33 +225,12 @@ function RichBlock({ block, academicMode = false }: { block: Block; academicMode
         </p>
       )
     }
-    case 'list': {
-      if (academicMode) {
-        const indentClasses = ['pl-5', 'pl-11', 'pl-16', 'pl-20', 'pl-24']
-        return (
-          <div className="space-y-1 my-1.5 font-serif text-[12pt] leading-[1.15] text-gray-950">
-            {block.items.map((it, idx) => {
-              const indClass = indentClasses[Math.min(it.level, indentClasses.length - 1)]
-              return (
-                <div key={idx} className={cn('flex items-baseline gap-2', indClass)}>
-                  <span className="shrink-0 select-none font-mono text-[11pt] text-gray-700">
-                    {it.ordered ? `${idx + 1}.` : '•'}
-                  </span>
-                  <span className="flex-1 leading-[1.15]">
-                    <Inline text={it.text} />
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        )
-      }
-      const isOrdered = block.items.length > 0 && block.items[0].ordered
-      return isOrdered ? (
+    case 'list':
+      return block.ordered ? (
         <ol className="list-decimal space-y-1 pl-5">
           {block.items.map((it, i) => (
             <li key={i}>
-              <Inline text={it.text} />
+              <Inline text={it} />
             </li>
           ))}
         </ol>
@@ -346,24 +238,16 @@ function RichBlock({ block, academicMode = false }: { block: Block; academicMode
         <ul className="list-disc space-y-1 pl-5">
           {block.items.map((it, i) => (
             <li key={i}>
-              <Inline text={it.text} />
+              <Inline text={it} />
             </li>
           ))}
         </ul>
       )
-    }
     case 'svg':
       return (
         <div
-          className="my-3 flex justify-center overflow-x-auto bg-transparent p-0"
+          className="my-3 flex justify-center overflow-x-auto rounded-[var(--radius-md)] border border-border bg-card/40 p-3"
           dangerouslySetInnerHTML={{ __html: block.svg }}
-        />
-      )
-    case 'html':
-      return (
-        <div
-          className="my-2"
-          dangerouslySetInnerHTML={{ __html: block.html }}
         />
       )
     case 'quote':
@@ -380,73 +264,7 @@ function RichBlock({ block, academicMode = false }: { block: Block; academicMode
           <EmbeddedImage alt={block.alt} url={block.url} />
         </div>
       )
-    case 'table': {
-      if (academicMode) {
-        // Calculate proportional column weights based on content lengths
-        const numCols = block.header.length
-        const colLengths = new Array(numCols).fill(0)
-        block.header.forEach((h, i) => {
-          colLengths[i] = Math.max(colLengths[i], h.trim().length)
-        })
-        block.rows.forEach((row) => {
-          row.forEach((c, i) => {
-            if (i < numCols) {
-              colLengths[i] = Math.max(colLengths[i], c.trim().length)
-            }
-          })
-        })
-
-        const totalLen = colLengths.reduce((a, b) => a + b, 0) || 1
-        const colWidths = colLengths.map((len, idx) => {
-          const hName = block.header[idx]?.trim().toLowerCase()
-          if (hName === 'no' || hName === 'no.' || hName === '#') {
-            return '6%'
-          }
-          const pct = Math.max(12, Math.round((len / totalLen) * 100))
-          return `${pct}%`
-        })
-
-        return (
-          <div className="my-3 overflow-x-auto">
-            <table className="w-full border-collapse border border-slate-700/60 text-xs text-foreground bg-background table-auto">
-              <thead>
-                <tr className="border-b border-slate-700/60 bg-muted/50">
-                  {block.header.map((h, i) => (
-                    <th
-                      key={i}
-                      style={{ width: colWidths[i] }}
-                      className="border border-slate-700/60 px-3 py-2 text-center font-bold text-foreground"
-                    >
-                      <Inline text={h} />
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {block.rows.map((row, r) => (
-                  <tr key={r} className="border-b border-slate-700/40 hover:bg-muted/10">
-                    {row.map((c, i) => {
-                      const isCenter = i === 0 && (block.header[0]?.toLowerCase().includes('no') || c.length <= 4)
-                      return (
-                        <td
-                          key={i}
-                          style={{ width: colWidths[i] }}
-                          className={cn(
-                            'border border-slate-700/60 px-3 py-2 align-middle text-foreground leading-relaxed',
-                            isCenter ? 'text-center' : 'text-left',
-                          )}
-                        >
-                          <Inline text={c} />
-                        </td>
-                      )
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )
-      }
+    case 'table':
       return (
         <div className="overflow-x-auto rounded-[var(--radius-lg)] border border-border bg-card">
           <table className="w-full text-xs">
@@ -473,38 +291,12 @@ function RichBlock({ block, academicMode = false }: { block: Block; academicMode
           </table>
         </div>
       )
-    }
-    case 'paragraph': {
-      if (academicMode) {
-        const trimmed = block.text.trim()
-        const isFigure = /^\*?(Gambar|Figure)\s+\d+[\d.]*[:\s]/.test(trimmed)
-        const isTable = /^\*?(Tabel|Table)\s+\d+[\d.]*[:\s]/.test(trimmed)
-        if (isFigure) {
-          return (
-            <p className="my-1.5 text-center font-serif text-[11pt] font-normal italic leading-snug text-gray-700">
-              <Inline text={block.text} />
-            </p>
-          )
-        }
-        if (isTable) {
-          return (
-            <p className="mt-3 mb-1 text-center font-serif text-[11pt] font-normal italic leading-snug text-gray-800">
-              <Inline text={block.text} />
-            </p>
-          )
-        }
-        return (
-          <p className="my-1 whitespace-pre-wrap break-words font-serif text-[12pt] leading-[1.15] text-gray-950">
-            <Inline text={block.text} />
-          </p>
-        )
-      }
+    case 'paragraph':
       return (
         <p className="whitespace-pre-wrap break-words">
           <Inline text={block.text} />
         </p>
       )
-    }
     default:
       return null
   }

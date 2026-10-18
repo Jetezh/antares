@@ -41,7 +41,7 @@ import { copyText } from '@/lib/clipboard'
 import { useI18n } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 import { LatexPreview } from '@/components/chat/LatexPreview'
-import { Markdown } from '@/components/chat/Markdown'
+import { AcademicDraft } from '@/components/chat/AcademicDraft'
 
 interface ResearchPanelProps {
   refreshKey?: number
@@ -292,6 +292,256 @@ Spesifikasi modul sistem Bilik dirinci pada tabel berikut:
 2. **Ketersediaan**: Sistem memiliki uptime target 99.9% dengan replikasi database berkala.
 `
 
+async function convertSvgToPngDataUrl(svgStr: string): Promise<string> {
+  return new Promise((resolve) => {
+    try {
+      // Sanitize unescaped ampersands in text nodes (e.g. "Owner & Staff" -> "Owner &amp; Staff")
+      const sanitizedSvg = svgStr.replace(/&(?!(?:amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)/g, '&amp;')
+
+      const parser = new DOMParser()
+      const doc = parser.parseFromString(sanitizedSvg, 'image/svg+xml')
+      const parserError = doc.querySelector('parsererror')
+      if (parserError) {
+        console.warn('SVG parse error:', parserError.textContent)
+        resolve('')
+        return
+      }
+
+      const svgEl = doc.querySelector('svg')
+      if (!svgEl) {
+        resolve('')
+        return
+      }
+
+      let width = 800
+      let height = 500
+      const viewBox = svgEl.getAttribute('viewBox')
+      if (viewBox) {
+        const parts = viewBox.split(/\s+/).map(Number)
+        if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
+          width = parts[2]
+          height = parts[3]
+        }
+      } else {
+        width = parseFloat(svgEl.getAttribute('width') || '800') || 800
+        height = parseFloat(svgEl.getAttribute('height') || '500') || 500
+      }
+
+      const canvas = document.createElement('canvas')
+      canvas.width = width * 2
+      canvas.height = height * 2
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        resolve('')
+        return
+      }
+      ctx.scale(2, 2)
+
+      const img = new Image()
+      const svgBlob = new Blob([sanitizedSvg], { type: 'image/svg+xml;charset=utf-8' })
+      const url = URL.createObjectURL(svgBlob)
+
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0, width, height)
+        URL.revokeObjectURL(url)
+        resolve(canvas.toDataURL('image/png'))
+      }
+      img.onerror = () => {
+        URL.revokeObjectURL(url)
+        resolve('')
+      }
+      img.src = url
+    } catch {
+      resolve('')
+    }
+  })
+}
+
+export async function convertMarkdownToAcademicHtml(draftTitle: string, draftContent: string): Promise<string> {
+  let processedContent = draftContent
+  const svgMatches = processedContent.match(/<svg[\s\S]*?<\/svg>/gi) || []
+  for (const svgCode of svgMatches) {
+    const pngDataUrl = await convertSvgToPngDataUrl(svgCode)
+    if (pngDataUrl) {
+      processedContent = processedContent.replace(
+        svgCode,
+        `<p style="text-align: center; margin-top: 10px; margin-bottom: 2px;"><img src="${pngDataUrl}" width="500" style="max-width: 500px; width: 500px; height: auto;" /></p>`,
+      )
+    } else {
+      processedContent = processedContent.replace(
+        svgCode,
+        '<p style="text-align: center; margin: 12px 0; padding: 20px; border: 1px dashed #94a3b8; font-style: italic; color: #64748b;">[Diagram Alir / Gambar Arsitektur Sistem Bilik]</p>',
+      )
+    }
+  }
+
+  const lines = processedContent.split('\n')
+  let bodyHtml = ''
+  let inTable = false
+  let tableRows: string[][] = []
+
+  const flushTable = () => {
+    if (!inTable || tableRows.length === 0) {
+      inTable = false
+      tableRows = []
+      return
+    }
+    const numCols = tableRows[0].length
+    const colLengths = new Array(numCols).fill(0)
+    tableRows.forEach((row) => {
+      row.forEach((cell, i) => {
+        if (i < numCols) {
+          colLengths[i] = Math.max(colLengths[i], cell.trim().length)
+        }
+      })
+    })
+    const totalLen = colLengths.reduce((a, b) => a + b, 0) || 1
+    const colWidths = colLengths.map((len, idx) => {
+      const hName = tableRows[0][idx]?.trim().toLowerCase()
+      if (hName === 'no' || hName === 'no.' || hName === '#') return '6%'
+      const pct = Math.max(12, Math.round((len / totalLen) * 100))
+      return `${pct}%`
+    })
+
+    bodyHtml += '<table border="1" style="border-collapse: collapse; width: 100%; margin-top: 4px; margin-bottom: 12px; font-family: \'Times New Roman\', serif; font-size: 11pt; table-layout: auto;">\n'
+    tableRows.forEach((row, rIdx) => {
+      bodyHtml += '  <tr>\n'
+      row.forEach((cell, cIdx) => {
+        const tag = rIdx === 0 ? 'th' : 'td'
+        const isCenter = rIdx === 0 || (cIdx === 0 && (tableRows[0][0]?.toLowerCase().includes('no') || cell.trim().length <= 4))
+        const align = isCenter ? 'text-align: center;' : 'text-align: left;'
+        const bg = rIdx === 0 ? 'background-color: #f1f5f9; font-weight: bold;' : ''
+        const formattedCell = cell.trim()
+          .replace(/\*\*([\s\S]*?)\*\*/g, '<b style="font-weight: 700; font-family: \'Times New Roman\', Times, serif;">$1</b>')
+          .replace(/\*([\s\S]*?)\*/g, '<i style="font-family: \'Times New Roman\', Times, serif;">$1</i>')
+        bodyHtml += `    <${tag} style="border: 1px solid #1e293b; padding: 5px 8px; font-size: 11pt; line-height: 1.15; width: ${colWidths[cIdx]}; ${align} ${bg}"><span style="font-family: 'Times New Roman', Times, serif;">${formattedCell}</span></${tag}>\n`
+      })
+      bodyHtml += '  </tr>\n'
+    })
+    bodyHtml += '</table>\n'
+    inTable = false
+    tableRows = []
+  }
+
+  let inList = false
+  let listIsOrdered = false
+  let listItemsHtml = ''
+
+  const flushList = () => {
+    if (!inList) return
+    const listTag = listIsOrdered ? 'ol' : 'ul'
+    bodyHtml += `<${listTag} style="margin-top: 4pt; margin-bottom: 6pt; padding-left: 1cm; font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.15;">\n${listItemsHtml}</${listTag}>\n`
+    inList = false
+    listItemsHtml = ''
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const rawLine = lines[i]
+    const line = rawLine.trim()
+    if (!line) {
+      if (inTable) flushTable()
+      if (inList) flushList()
+      continue
+    }
+
+    if (line.includes('|') && i + 1 < lines.length && /^\s*\|?[\s:|-]+\|[\s:|-]*$/.test(lines[i + 1])) {
+      if (inList) flushList()
+      inTable = true
+      const parseRow = (l: string) => l.replace(/^\s*\|/, '').replace(/\|\s*$/, '').split('|')
+      tableRows.push(parseRow(line))
+      i++
+      while (i + 1 < lines.length && lines[i + 1].includes('|') && lines[i + 1].trim()) {
+        i++
+        tableRows.push(parseRow(lines[i]))
+      }
+      flushTable()
+      continue
+    }
+
+    const listMatch = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/.exec(rawLine)
+    if (listMatch) {
+      if (inTable) flushTable()
+      const indentSpaces = listMatch[1].replace(/\t/g, '  ').length
+      const level = Math.floor(indentSpaces / 2)
+      const isOrdered = /\d/.test(listMatch[2])
+
+      if (!inList) {
+        inList = true
+        listIsOrdered = isOrdered
+      } else if (listIsOrdered !== isOrdered && level === 0) {
+        flushList()
+        inList = true
+        listIsOrdered = isOrdered
+      }
+
+      const content = listMatch[3]
+        .replace(/\*\*([\s\S]*?)\*\*/g, '<b style="font-weight: 700; font-family: \'Times New Roman\', Times, serif;">$1</b>')
+        .replace(/\*([\s\S]*?)\*/g, '<i style="font-family: \'Times New Roman\', Times, serif;">$1</i>')
+
+      const marginL = level > 0 ? ` style="margin-left: ${level * 0.7}cm;"` : ''
+      listItemsHtml += `  <li${marginL} style="margin-top: 2pt; margin-bottom: 2pt; line-height: 1.15;"><span style="font-family: 'Times New Roman', Times, serif;">${content}</span></li>\n`
+      continue
+    }
+
+    if (inList) flushList()
+
+    if (line.startsWith('# ')) {
+      bodyHtml += `<h1 style="font-family: 'Times New Roman', Times, serif; font-size: 12pt; font-weight: bold; text-align: center; text-transform: uppercase; margin-top: 14pt; margin-bottom: 6pt; line-height: 1.15;"><b style="font-weight: 700; font-family: 'Times New Roman', Times, serif;">${line.slice(2).trim()}</b></h1>\n`
+    } else if (line.startsWith('## ')) {
+      bodyHtml += `<h2 style="font-family: 'Times New Roman', Times, serif; font-size: 12pt; font-weight: bold; margin-top: 12pt; margin-bottom: 4pt; line-height: 1.15;"><b style="font-weight: 700; font-family: 'Times New Roman', Times, serif;">${line.slice(3).trim()}</b></h2>\n`
+    } else if (line.startsWith('### ')) {
+      bodyHtml += `<h3 style="font-family: 'Times New Roman', Times, serif; font-size: 12pt; font-weight: bold; font-style: italic; margin-top: 10pt; margin-bottom: 2pt; line-height: 1.15;"><b style="font-weight: 700; font-family: 'Times New Roman', Times, serif;"><i>${line.slice(4).trim()}</i></b></h3>\n`
+    } else if (line.startsWith('<img') || line.startsWith('<div')) {
+      bodyHtml += line + '\n'
+    } else if (line.startsWith('<p')) {
+      let pLine = line
+      if (!pLine.includes('line-height')) {
+        pLine = pLine.replace(/<p\s+style="([^"]*)"/i, '<p style="font-family: \'Times New Roman\', Times, serif; margin: 0; line-height: 1.15; $1"')
+      }
+      bodyHtml += pLine + '\n'
+    } else {
+      const isFigure = /^\*?(Gambar|Figure)\s+\d+[\d.]*[:\s]/.test(line)
+      const isTable = /^\*?(Tabel|Table)\s+\d+[\d.]*[:\s]/.test(line)
+      let formatted = line
+        .replace(/\*\*([\s\S]*?)\*\*/g, '<b style="font-weight: 700; font-family: \'Times New Roman\', Times, serif;">$1</b>')
+        .replace(/\*([\s\S]*?)\*/g, '<i style="font-family: \'Times New Roman\', Times, serif;">$1</i>')
+      if (isFigure) {
+        bodyHtml += `<p style="font-family: 'Times New Roman', Times, serif; text-align: center; font-size: 11pt; font-style: italic; font-weight: normal; margin-top: 4pt; margin-bottom: 8pt; line-height: 1.15; color: #1e293b;"><span style="font-family: 'Times New Roman', Times, serif;">${formatted}</span></p>\n`
+      } else if (isTable) {
+        bodyHtml += `<p style="font-family: 'Times New Roman', Times, serif; font-size: 11pt; font-style: italic; font-weight: normal; margin-top: 10pt; margin-bottom: 2pt; line-height: 1.15; color: #1e293b;"><span style="font-family: 'Times New Roman', Times, serif;">${formatted}</span></p>\n`
+      } else {
+        bodyHtml += `<p style="font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.15; text-align: justify; text-indent: 1cm; margin-top: 0pt; margin-bottom: 6pt;"><span style="font-family: 'Times New Roman', Times, serif;">${formatted}</span></p>\n`
+      }
+    }
+  }
+
+  if (inTable) flushTable()
+  if (inList) flushList()
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>${draftTitle}</title>
+<style>
+@page { size: A4; margin: 3cm 3cm 3cm 4cm; }
+body, p, div, span, table, th, td, h1, h2, h3, h4 { font-family: 'Times New Roman', Times, serif !important; color: #000; }
+body, p, div { font-size: 12pt; line-height: 1.15; text-align: justify; margin-top: 0pt; margin-bottom: 0pt; }
+h1 { font-size: 12pt; font-weight: bold; text-align: center; text-transform: uppercase; margin-top: 14pt; margin-bottom: 6pt; line-height: 1.15; }
+h2 { font-size: 12pt; font-weight: bold; margin-top: 12pt; margin-bottom: 4pt; line-height: 1.15; }
+h3 { font-size: 12pt; font-weight: bold; font-style: italic; margin-top: 10pt; margin-bottom: 2pt; line-height: 1.15; }
+table { border-collapse: collapse; width: 100%; margin-top: 4pt; margin-bottom: 12pt; font-family: 'Times New Roman', serif; font-size: 11pt; }
+th, td { border: 1px solid #1e293b; padding: 5px 8px; line-height: 1.15; font-size: 11pt; }
+th { background-color: #f1f5f9; font-weight: bold; text-align: center; }
+img { max-width: 500px; height: auto; display: block; margin: 0 auto; }
+</style>
+</head>
+<body style="font-family: 'Times New Roman', Times, serif; margin: 40px;">
+${bodyHtml}
+</body>
+</html>`
+}
+
 export const ResearchPanel = memo(function ResearchPanel({
   refreshKey,
   onClose,
@@ -388,269 +638,7 @@ export const ResearchPanel = memo(function ResearchPanel({
     setExportError('')
     setExportedDocUrl('')
     try {
-      // High-fidelity Markdown-to-HTML converter for Google Docs / Word export
-      // Converts SVG diagrams to inline PNG Data URIs so Google Docs embeds them as native drawings/images
-      const convertSvgToPngDataUrl = async (svgStr: string): Promise<string> => {
-        return new Promise((resolve) => {
-          try {
-            // Sanitize unescaped ampersands in text nodes (e.g. "Owner & Staff" -> "Owner &amp; Staff")
-            const sanitizedSvg = svgStr.replace(/&(?!(?:amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)/g, '&amp;')
-
-            const parser = new DOMParser()
-            const doc = parser.parseFromString(sanitizedSvg, 'image/svg+xml')
-            const parserError = doc.querySelector('parsererror')
-            if (parserError) {
-              console.warn('SVG parse error:', parserError.textContent)
-              resolve('')
-              return
-            }
-
-            const svgEl = doc.querySelector('svg')
-            if (!svgEl) {
-              resolve('')
-              return
-            }
-
-            let width = 800
-            let height = 500
-            const viewBox = svgEl.getAttribute('viewBox')
-            if (viewBox) {
-              const parts = viewBox.split(/\s+/).map(Number)
-              if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
-                width = parts[2]
-                height = parts[3]
-              }
-            } else {
-              width = parseFloat(svgEl.getAttribute('width') || '800') || 800
-              height = parseFloat(svgEl.getAttribute('height') || '500') || 500
-            }
-
-            // Create canvas and draw SVG
-            const canvas = document.createElement('canvas')
-            canvas.width = width * 2 // 2x resolution for retina/clean print
-            canvas.height = height * 2
-            const ctx = canvas.getContext('2d')
-            if (!ctx) {
-              resolve('')
-              return
-            }
-            ctx.scale(2, 2)
-
-            const img = new Image()
-            const svgBlob = new Blob([sanitizedSvg], { type: 'image/svg+xml;charset=utf-8' })
-            const url = URL.createObjectURL(svgBlob)
-
-            img.onload = () => {
-              ctx.drawImage(img, 0, 0, width, height)
-              URL.revokeObjectURL(url)
-              resolve(canvas.toDataURL('image/png'))
-            }
-            img.onerror = () => {
-              URL.revokeObjectURL(url)
-              resolve('')
-            }
-            img.src = url
-          } catch {
-            resolve('')
-          }
-        })
-      }
-
-      // 1. Process SVG blocks: replace with rendered PNG <img> for Google Docs compatibility
-      // If canvas conversion succeeds, replace with rendered PNG.
-      // If it fails or is empty, DO NOT leave raw SVG text in HTML (which causes plain text letters); replace with placeholder or stripped.
-      let processedContent = draftContent
-      const svgMatches = processedContent.match(/<svg[\s\S]*?<\/svg>/gi) || []
-      for (const svgCode of svgMatches) {
-        const pngDataUrl = await convertSvgToPngDataUrl(svgCode)
-        if (pngDataUrl) {
-          processedContent = processedContent.replace(
-            svgCode,
-            `<p style="text-align: center; margin-top: 10px; margin-bottom: 2px;"><img src="${pngDataUrl}" width="500" style="max-width: 500px; width: 500px; height: auto;" /></p>`,
-          )
-        } else {
-          // Fallback: replace with clean placeholder box so raw SVG text letters don't bleed into document
-          processedContent = processedContent.replace(
-            svgCode,
-            '<p style="text-align: center; margin: 12px 0; padding: 20px; border: 1px dashed #94a3b8; font-style: italic; color: #64748b;">[Diagram Alir / Gambar Arsitektur Sistem Bilik]</p>',
-          )
-        }
-      }
-
-      // 2. Parse Markdown elements (Headings, Tables, Lists, Paragraphs)
-      const lines = processedContent.split('\n')
-      let bodyHtml = ''
-      let inTable = false
-      let tableRows: string[][] = []
-
-      const flushTable = () => {
-        if (!inTable || tableRows.length === 0) {
-          inTable = false
-          tableRows = []
-          return
-        }
-        // Calculate proportional column widths
-        const numCols = tableRows[0].length
-        const colLengths = new Array(numCols).fill(0)
-        tableRows.forEach((row) => {
-          row.forEach((cell, i) => {
-            if (i < numCols) {
-              colLengths[i] = Math.max(colLengths[i], cell.trim().length)
-            }
-          })
-        })
-        const totalLen = colLengths.reduce((a, b) => a + b, 0) || 1
-        const colWidths = colLengths.map((len, idx) => {
-          const hName = tableRows[0][idx]?.trim().toLowerCase()
-          if (hName === 'no' || hName === 'no.' || hName === '#') return '6%'
-          const pct = Math.max(12, Math.round((len / totalLen) * 100))
-          return `${pct}%`
-        })
-
-        bodyHtml += '<table border="1" style="border-collapse: collapse; width: 100%; margin-top: 4px; margin-bottom: 12px; font-family: \'Times New Roman\', serif; font-size: 11pt; table-layout: auto;">\n'
-        tableRows.forEach((row, rIdx) => {
-          bodyHtml += '  <tr>\n'
-          row.forEach((cell, cIdx) => {
-            const tag = rIdx === 0 ? 'th' : 'td'
-            const isCenter = rIdx === 0 || (cIdx === 0 && (tableRows[0][0]?.toLowerCase().includes('no') || cell.trim().length <= 4))
-            const align = isCenter ? 'text-align: center;' : 'text-align: left;'
-            const bg = rIdx === 0 ? 'background-color: #f1f5f9; font-weight: bold;' : ''
-            
-            // Format inline bold & italic inside table cells
-            const formattedCell = cell.trim()
-              .replace(/\*\*([\s\S]*?)\*\*/g, '<b style="font-weight: 700; font-family: \'Times New Roman\', Times, serif;">$1</b>')
-              .replace(/\*([\s\S]*?)\*/g, '<i style="font-family: \'Times New Roman\', Times, serif;">$1</i>')
-              
-            bodyHtml += `    <${tag} style="border: 1px solid #1e293b; padding: 5px 8px; font-size: 11pt; line-height: 1.15; width: ${colWidths[cIdx]}; ${align} ${bg}"><span style="font-family: 'Times New Roman', Times, serif;">${formattedCell}</span></${tag}>\n`
-          })
-          bodyHtml += '  </tr>\n'
-        })
-        bodyHtml += '</table>\n'
-        inTable = false
-        tableRows = []
-      }
-
-      let inList = false
-      let listIsOrdered = false
-      let listItemsHtml = ''
-
-      const flushList = () => {
-        if (!inList) return
-        const listTag = listIsOrdered ? 'ol' : 'ul'
-        bodyHtml += `<${listTag} style="margin-top: 4pt; margin-bottom: 6pt; padding-left: 1cm; font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.15;">\n${listItemsHtml}</${listTag}>\n`
-        inList = false
-        listItemsHtml = ''
-      }
-
-      for (let i = 0; i < lines.length; i++) {
-        const rawLine = lines[i]
-        const line = rawLine.trim()
-        if (!line) {
-          if (inTable) flushTable()
-          if (inList) flushList()
-          continue
-        }
-
-        // Table detection
-        if (line.includes('|') && i + 1 < lines.length && /^\s*\|?[\s:|-]+\|[\s:|-]*$/.test(lines[i + 1])) {
-          if (inList) flushList()
-          inTable = true
-          const parseRow = (l: string) => l.replace(/^\s*\|/, '').replace(/\|\s*$/, '').split('|')
-          tableRows.push(parseRow(line))
-          i++ // skip separator row
-          while (i + 1 < lines.length && lines[i + 1].includes('|') && lines[i + 1].trim()) {
-            i++
-            tableRows.push(parseRow(lines[i]))
-          }
-          flushTable()
-          continue
-        }
-
-        // List detection (Ordered or Unordered, with indentation support)
-        const listMatch = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/.exec(rawLine)
-        if (listMatch) {
-          if (inTable) flushTable()
-          const indentSpaces = listMatch[1].replace(/\t/g, '  ').length
-          const level = Math.floor(indentSpaces / 2)
-          const isOrdered = /\d/.test(listMatch[2])
-
-          if (!inList) {
-            inList = true
-            listIsOrdered = isOrdered
-          } else if (listIsOrdered !== isOrdered && level === 0) {
-            flushList()
-            inList = true
-            listIsOrdered = isOrdered
-          }
-
-          const content = listMatch[3]
-            .replace(/\*\*([\s\S]*?)\*\*/g, '<b style="font-weight: 700; font-family: \'Times New Roman\', Times, serif;">$1</b>')
-            .replace(/\*([\s\S]*?)\*/g, '<i style="font-family: \'Times New Roman\', Times, serif;">$1</i>')
-
-          const marginL = level > 0 ? ` style="margin-left: ${level * 0.7}cm;"` : ''
-          listItemsHtml += `  <li${marginL} style="margin-top: 2pt; margin-bottom: 2pt; line-height: 1.15;"><span style="font-family: 'Times New Roman', Times, serif;">${content}</span></li>\n`
-          continue
-        }
-
-        if (inList) flushList()
-
-        // Headings: Academic rule: Bab 12pt bold centered uppercase; Sub-bab 12pt bold left-aligned
-        if (line.startsWith('# ')) {
-          bodyHtml += `<h1 style="font-family: 'Times New Roman', Times, serif; font-size: 12pt; font-weight: bold; text-align: center; text-transform: uppercase; margin-top: 14pt; margin-bottom: 6pt; line-height: 1.15;"><b style="font-weight: 700; font-family: 'Times New Roman', Times, serif;">${line.slice(2).trim()}</b></h1>\n`
-        } else if (line.startsWith('## ')) {
-          bodyHtml += `<h2 style="font-family: 'Times New Roman', Times, serif; font-size: 12pt; font-weight: bold; margin-top: 12pt; margin-bottom: 4pt; line-height: 1.15;"><b style="font-weight: 700; font-family: 'Times New Roman', Times, serif;">${line.slice(3).trim()}</b></h2>\n`
-        } else if (line.startsWith('### ')) {
-          bodyHtml += `<h3 style="font-family: 'Times New Roman', Times, serif; font-size: 12pt; font-weight: bold; font-style: italic; margin-top: 10pt; margin-bottom: 2pt; line-height: 1.15;"><b style="font-weight: 700; font-family: 'Times New Roman', Times, serif;"><i>${line.slice(4).trim()}</i></b></h3>\n`
-        } else if (line.startsWith('<img') || line.startsWith('<div')) {
-          bodyHtml += line + '\n'
-        } else if (line.startsWith('<p')) {
-          let pLine = line
-          if (!pLine.includes('line-height')) {
-            pLine = pLine.replace(/<p\s+style="([^"]*)"/i, '<p style="font-family: \'Times New Roman\', Times, serif; margin: 0; line-height: 1.15; $1"')
-          }
-          bodyHtml += pLine + '\n'
-        } else {
-          // Detect caption lines (*Gambar ...* or *Tabel ...*)
-          const isFigure = /^\*?(Gambar|Figure)\s+\d+[\d.]*[:\s]/.test(line)
-          const isTable = /^\*?(Tabel|Table)\s+\d+[\d.]*[:\s]/.test(line)
-          let formatted = line
-            .replace(/\*\*([\s\S]*?)\*\*/g, '<b style="font-weight: 700; font-family: \'Times New Roman\', Times, serif;">$1</b>')
-            .replace(/\*([\s\S]*?)\*/g, '<i style="font-family: \'Times New Roman\', Times, serif;">$1</i>')
-          if (isFigure) {
-            bodyHtml += `<p style="font-family: 'Times New Roman', Times, serif; text-align: center; font-size: 11pt; font-style: italic; font-weight: normal; margin-top: 4pt; margin-bottom: 8pt; line-height: 1.15; color: #1e293b;"><span style="font-family: 'Times New Roman', Times, serif;">${formatted}</span></p>\n`
-          } else if (isTable) {
-            bodyHtml += `<p style="font-family: 'Times New Roman', Times, serif; text-align: center; font-size: 11pt; font-style: italic; font-weight: normal; margin-top: 8pt; margin-bottom: 2pt; line-height: 1.15; color: #1e293b;"><span style="font-family: 'Times New Roman', Times, serif;">${formatted}</span></p>\n`
-          } else {
-            bodyHtml += `<p style="font-family: 'Times New Roman', Times, serif; margin-top: 0pt; margin-bottom: 0pt; text-indent: 1cm; line-height: 1.15; text-align: justify; font-size: 12pt;"><span style="font-family: 'Times New Roman', Times, serif;">${formatted}</span></p>\n`
-          }
-        }
-      }
-      if (inTable) flushTable()
-      if (inList) flushList()
-
-      const fullHtml = `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>${draftTitle}</title>
-<style>
-@page { size: A4; margin: 3cm 3cm 3cm 4cm; }
-body, p, div, span, table, th, td, h1, h2, h3, h4 { font-family: 'Times New Roman', Times, serif !important; color: #000; }
-body, p, div { font-size: 12pt; line-height: 1.15; text-align: justify; margin-top: 0pt; margin-bottom: 0pt; }
-h1 { font-size: 12pt; font-weight: bold; text-align: center; text-transform: uppercase; margin-top: 14pt; margin-bottom: 6pt; line-height: 1.15; }
-h2 { font-size: 12pt; font-weight: bold; margin-top: 12pt; margin-bottom: 4pt; line-height: 1.15; }
-h3 { font-size: 12pt; font-weight: bold; font-style: italic; margin-top: 10pt; margin-bottom: 2pt; line-height: 1.15; }
-table { border-collapse: collapse; width: 100%; margin-top: 4pt; margin-bottom: 12pt; font-family: 'Times New Roman', serif; font-size: 11pt; }
-th, td { border: 1px solid #1e293b; padding: 5px 8px; line-height: 1.15; font-size: 11pt; }
-th { background-color: #f1f5f9; font-weight: bold; text-align: center; }
-img { max-width: 500px; height: auto; display: block; margin: 0 auto; }
-</style>
-</head>
-<body style="font-family: 'Times New Roman', Times, serif; margin: 40px;">
-${bodyHtml}
-</body>
-</html>`
-
+      const fullHtml = await convertMarkdownToAcademicHtml(draftTitle, draftContent)
       const res = await post<{ status: string; document_url: string; document_id: string }>(
         '/research/gdocs/export',
         {
@@ -681,11 +669,12 @@ ${bodyHtml}
     setSyncPushing(true)
     setSyncPushSuccess(false)
     try {
+      const fullHtml = await convertMarkdownToAcademicHtml(draftTitle, draftContent)
       const res = await post<{ status: string; document_url: string }>(
         '/research/gdocs/sync',
         {
           document_url: docUrl,
-          html: `<div style="font-family: 'Times New Roman', serif; font-size: 12pt; line-height: 1.15; text-align: justify;">${draftContent}</div>`,
+          html: fullHtml,
         },
       )
       if (res.status === 'success') {
@@ -1317,7 +1306,7 @@ ${bodyHtml}
                   >
                     {/* Page Body Content */}
                     <div className="flex-1">
-                      <Markdown content={pageText} academicMode={true} className="space-y-1.5 text-gray-950 font-serif" />
+                      <AcademicDraft content={pageText} />
                     </div>
 
                     {/* Official Academic Page Footer (Nomor Halaman Rata Tengah Bawah) */}
