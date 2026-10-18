@@ -464,6 +464,154 @@ func (s *Server) handleGDocsExport(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *Server) handleGDocsSyncPush(w http.ResponseWriter, r *http.Request) {
+	if s.requireDashboardPassword(w, r) {
+		return
+	}
+	ctx := r.Context()
+	var body struct {
+		DocumentID string `json:"document_id"`
+		HTML       string `json:"html"`
+	}
+	if err := decodeBody(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	targetID := strings.TrimSpace(body.DocumentID)
+	if targetID == "" {
+		cfg := s.config()
+		targetID = strings.TrimSpace(cfg.Research.GDocs.DocumentID)
+		if targetID == "" && cfg.Research.GDocs.DocumentURL != "" {
+			targetID = extractGoogleDocID(cfg.Research.GDocs.DocumentURL)
+		}
+	}
+	if targetID == "" {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("document_id is required for sync push"))
+		return
+	}
+
+	contentHTML := strings.TrimSpace(body.HTML)
+	if contentHTML == "" {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("html content cannot be empty"))
+		return
+	}
+
+	token, err := tools.ResolveActiveGoogleToken(ctx, s.config(), s.db)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("Google account is not connected: %w", err))
+		return
+	}
+
+	// Update existing file content on Google Drive via PATCH multipart upload
+	boundary := fmt.Sprintf("-------AntaresSyncBoundary%d", time.Now().UnixNano())
+	var b bytes.Buffer
+
+	// Part 1: Metadata JSON (Empty or preserves mimeType)
+	b.WriteString(fmt.Sprintf("--%s\r\n", boundary))
+	b.WriteString("Content-Type: application/json; charset=UTF-8\r\n\r\n")
+	b.WriteString("{}\r\n")
+
+	// Part 2: HTML Content
+	b.WriteString(fmt.Sprintf("--%s\r\n", boundary))
+	b.WriteString("Content-Type: text/html; charset=UTF-8\r\n\r\n")
+	b.WriteString(contentHTML)
+	b.WriteString(fmt.Sprintf("\r\n--%s--\r\n", boundary))
+
+	patchURL := fmt.Sprintf("https://www.googleapis.com/upload/drive/v3/files/%s?uploadType=multipart", url.PathEscape(targetID))
+	req, err := http.NewRequestWithContext(ctx, "PATCH", patchURL, &b)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Errorf("create drive patch request: %w", err))
+		return
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", fmt.Sprintf("multipart/related; boundary=%s", boundary))
+
+	client := &http.Client{Timeout: 45 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Errorf("send request to Google Drive: %w", err))
+		return
+	}
+	defer resp.Body.Close()
+
+	respBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("Google Drive API patch error (%d): %s", resp.StatusCode, string(respBytes)))
+		return
+	}
+
+	docURL := fmt.Sprintf("https://docs.google.com/document/d/%s/edit", targetID)
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":       "success",
+		"document_id":  targetID,
+		"document_url": docURL,
+		"message":      "Isi Google Docs berhasil diperbarui mengikuti draf terbaru!",
+	})
+}
+
+func (s *Server) handleGDocsSyncPull(w http.ResponseWriter, r *http.Request) {
+	if s.requireDashboardPassword(w, r) {
+		return
+	}
+	ctx := r.Context()
+	var body struct {
+		DocumentID string `json:"document_id"`
+	}
+	_ = decodeBody(r, &body)
+
+	targetID := strings.TrimSpace(body.DocumentID)
+	if targetID == "" {
+		cfg := s.config()
+		targetID = strings.TrimSpace(cfg.Research.GDocs.DocumentID)
+		if targetID == "" && cfg.Research.GDocs.DocumentURL != "" {
+			targetID = extractGoogleDocID(cfg.Research.GDocs.DocumentURL)
+		}
+	}
+	if targetID == "" {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("document_id is required for sync pull"))
+		return
+	}
+
+	readTool, ok := tools.Default().Get("gdocs_read")
+	if !ok {
+		writeError(w, http.StatusInternalServerError, fmt.Errorf("gdocs_read tool is not registered"))
+		return
+	}
+
+	argsJSON, _ := json.Marshal(map[string]any{"document_id": targetID})
+	res := readTool.Execute(ctx, tools.Input{
+		Args: argsJSON,
+		Deps: &tools.Deps{
+			Config: s.config(),
+			Store:  s.db,
+		},
+	})
+
+	if res.IsError {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("%s", res.Content))
+		return
+	}
+
+	// Clean out the header "Google Doc: Title (ID: ...)\n\n" from the extracted content
+	raw := res.Content
+	content := raw
+	if idx := strings.Index(raw, "\n\n"); idx != -1 {
+		content = strings.TrimSpace(raw[idx+2:])
+	}
+
+	// Update the local draft in Antares database
+	_ = s.db.SetKV(ctx, "research:draft:content", content)
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":      "success",
+		"document_id": targetID,
+		"content":     content,
+		"message":     "Berhasil menarik perubahan terbaru dari Google Docs ke Draf Naskah!",
+	})
+}
+
 func (s *Server) handleGetDraft(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	title, _ := s.db.GetKV(ctx, "research:draft:title")

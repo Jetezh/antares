@@ -1,7 +1,9 @@
 import { memo, useEffect, useMemo, useState } from 'react'
 import {
   ArrowCounterClockwise,
+  ArrowDown,
   ArrowSquareOut,
+  ArrowUp,
   ArrowsClockwise,
   Article,
   BookOpen,
@@ -322,6 +324,10 @@ export const ResearchPanel = memo(function ResearchPanel({
   const [autoShareWithLink, setAutoShareWithLink] = useState(true)
   const [draftSearchOpen, setDraftSearchOpen] = useState(false)
   const [draftSearchQuery, setDraftSearchQuery] = useState('')
+  const [syncPushing, setSyncPushing] = useState(false)
+  const [syncPushSuccess, setSyncPushSuccess] = useState(false)
+  const [syncPulling, setSyncPulling] = useState(false)
+  const [syncPullSuccess, setSyncPullSuccess] = useState(false)
 
   // Shortcut Ctrl+F in draft tab
   useEffect(() => {
@@ -665,6 +671,55 @@ ${bodyHtml}
       setExportError(err?.message || 'Gagal mengekspor dokumen ke Google Docs')
     } finally {
       setExportingGdocs(false)
+    }
+  }
+
+  // Two-way synchronization handlers
+  const handleSyncPush = async () => {
+    if (!docUrl) return
+    setSyncPushing(true)
+    setSyncPushSuccess(false)
+    try {
+      const res = await post<{ status: string; document_url: string }>(
+        '/research/gdocs/sync',
+        {
+          document_url: docUrl,
+          html: `<div style="font-family: 'Times New Roman', serif; font-size: 12pt; line-height: 1.15; text-align: justify;">${draftContent}</div>`,
+        },
+      )
+      if (res.status === 'success') {
+        setSyncPushSuccess(true)
+        setFrameKey((k) => k + 1)
+        setTimeout(() => setSyncPushSuccess(false), 3000)
+      }
+    } catch {
+      // ignore
+    } finally {
+      setSyncPushing(false)
+    }
+  }
+
+  const handleSyncPull = async () => {
+    if (!docUrl) return
+    setSyncPulling(true)
+    setSyncPullSuccess(false)
+    try {
+      const res = await post<{ status: string; content: string }>(
+        '/research/gdocs/pull',
+        { document_url: docUrl },
+      )
+      if (res.content) {
+        setDraftContent(res.content)
+        try {
+          localStorage.setItem('antares:draft-md', res.content)
+        } catch {}
+        setSyncPullSuccess(true)
+        setTimeout(() => setSyncPullSuccess(false), 3000)
+      }
+    } catch {
+      // ignore
+    } finally {
+      setSyncPulling(false)
     }
   }
 
@@ -1076,6 +1131,53 @@ ${bodyHtml}
                 <CloudArrowUp className="size-4" />
                 <span>{t('research.exportGdocs')}</span>
               </Button>
+
+              {/* Two-Way Sync Buttons (When linked to a Google Doc) */}
+              {docUrl ? (
+                <div className="flex items-center gap-1 rounded-[var(--radius-md)] border border-border bg-card/60 p-0.5">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleSyncPush}
+                    disabled={syncPushing}
+                    className={cn(
+                      'h-7 gap-1 px-2 text-[11px] transition-colors',
+                      syncPushSuccess ? 'text-emerald-500 font-semibold' : 'text-muted-foreground hover:text-foreground',
+                    )}
+                    title="Perbarui isi Google Docs mengikuti revisi draf naskah ini (Push)"
+                  >
+                    {syncPushing ? (
+                      <Spinner className="size-3 animate-spin" />
+                    ) : syncPushSuccess ? (
+                      <Check className="size-3 text-emerald-500" />
+                    ) : (
+                      <ArrowUp className="size-3" />
+                    )}
+                    <span>{syncPushing ? t('research.syncPushing') : t('research.syncPush')}</span>
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleSyncPull}
+                    disabled={syncPulling}
+                    className={cn(
+                      'h-7 gap-1 px-2 text-[11px] transition-colors',
+                      syncPullSuccess ? 'text-emerald-500 font-semibold' : 'text-muted-foreground hover:text-foreground',
+                    )}
+                    title="Tarik perubahan terbaru yang diedit oleh tim di Google Docs ke draf naskah (Pull)"
+                  >
+                    {syncPulling ? (
+                      <Spinner className="size-3 animate-spin" />
+                    ) : syncPullSuccess ? (
+                      <Check className="size-3 text-emerald-500" />
+                    ) : (
+                      <ArrowDown className="size-3" />
+                    )}
+                    <span>{syncPulling ? t('research.syncPulling') : t('research.syncPull')}</span>
+                  </Button>
+                </div>
+              ) : null}
 
               {onInsertToChat ? (
                 <Button

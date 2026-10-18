@@ -1208,6 +1208,14 @@ const id: Dict = {
   'research.autoShareOption': 'Siapa saja yang memiliki link dapat mengedit (Editor)',
   'research.autoShareHint': 'Membuat dokumen langsung dapat dibuka dan diedit di panel Split View tanpa perlu login ulang atau terblokir cookie.',
   'research.confirmExport': 'Ekspor & Tampilkan Sekarang',
+
+  'research.syncPush': 'Push ke Docs',
+  'research.syncPushing': 'Memperbarui Google Docs...',
+  'research.syncPushSuccess': 'Google Docs Berhasil Diperbarui!',
+  'research.syncPull': 'Pull dari Docs',
+  'research.syncPulling': 'Menarik revisi tim...',
+  'research.syncPullSuccess': 'Draf Diperbarui dari Google Docs!',
+  'research.connectedDocBadge': 'Tautan Dokumen',
 }
 
 export default id

@@ -131,6 +131,8 @@ func (s *Server) routes() {
 	m.HandleFunc("POST /api/research/settings", s.handleSaveResearchSettings)
 	m.HandleFunc("POST /api/research/gdocs/rollback", s.handleGDocsRollback)
 	m.HandleFunc("POST /api/research/gdocs/export", s.handleGDocsExport)
+	m.HandleFunc("PUT /api/research/gdocs/sync", s.handleGDocsSyncPush)
+	m.HandleFunc("POST /api/research/gdocs/pull", s.handleGDocsSyncPull)
 	m.HandleFunc("GET /api/research/draft", s.handleGetDraft)
 	m.HandleFunc("POST /api/research/draft", s.handleSaveDraft)
 	m.HandleFunc("POST /api/research/open-browser", s.handleOpenBrowser)

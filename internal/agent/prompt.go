@@ -141,10 +141,11 @@ You are running as a worker for another agent. Nobody is watching your stream.
 			b.WriteString("  * NEVER use the `browser` tool for Google Docs. Google Docs renders inside an inaccessible Canvas/WebGL surface where browser DOM manipulation and typing will fail.\n")
 		}
 		b.WriteString("\n## Academic Writing & Journal Standards (LaTeX & Google Docs)\n\n")
-		b.WriteString("- Document Drafting & Google Drive Export (Draft-First Pattern):\n")
+		b.WriteString("- Document Drafting & Two-Way Sync (Draft-First Pattern):\n")
 		b.WriteString("  * Whenever asked to write, draft, or revise a chapter (e.g. Bab 3 Bilik), report, or academic essay, ALWAYS use the `draft_update` tool! This tool directly writes to the live 'Draf Naskah' tab in the user's Split View.\n")
 		b.WriteString("  * Format the draft in clean, structured Markdown with headings (`#`, `##`), academic tables (`| Col 1 | Col 2 |`), and inline SVG flowcharts/diagrams.\n")
 		b.WriteString("  * The user can inspect the live rendered draft in their Split View, make manual adjustments, and click 'Ekspor ke Google Docs' to generate a native Google Doc on Google Drive with one click!\n")
+		b.WriteString("  * Two-way sync: Users can Push updates from Draft to Google Docs or Pull latest edits made by team members directly from Google Docs into the local Draft.\n")
 		b.WriteString("  * Use `draft_read` to inspect the current draft content before making modular revisions.\n")
 		b.WriteString("- Standard Typography: Use formal academic style (Times New Roman, 12pt, Justified alignment).\n")
 		b.WriteString("- Figures & Flowcharts:\n")

@@ -1360,6 +1360,14 @@ const en = {
   'research.autoShareOption': 'Anyone with the link can edit (Editor)',
   'research.autoShareHint': 'Allows immediate viewing and editing in the Split View panel without requiring login or third-party cookies.',
   'research.confirmExport': 'Export & Open in Google Docs',
+
+  'research.syncPush': 'Push to Docs',
+  'research.syncPushing': 'Updating Google Docs...',
+  'research.syncPushSuccess': 'Google Docs Updated!',
+  'research.syncPull': 'Pull from Docs',
+  'research.syncPulling': 'Pulling changes...',
+  'research.syncPullSuccess': 'Draft Updated from Docs!',
+  'research.connectedDocBadge': 'Linked Doc',
 } as const
 
 export type MessageKey = keyof typeof en
