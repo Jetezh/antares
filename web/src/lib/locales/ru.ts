@@ -879,6 +879,32 @@ const ru: Dict = {
   'research.exportedGdocsSuccess': 'Документ Google Docs создан!',
   'research.openExportedDoc': 'Открыть Google Docs',
   'research.draftTitlePlaceholder': 'Название документа (напр. Глава 3 - Проектирование)...',
+
+  'research.exportModalTitle': 'Экспорт черновика в Google Docs',
+  'research.exportModalDesc': 'Создать официальный документ Google Docs на Google Drive прямо из этого черновика.',
+  'research.step1Title': '1. Подключение Google-аккаунта',
+  'research.step2Title': '2. Название документа на Google Drive',
+  'research.step3Title': '3. Права доступа и общий доступ',
+  'research.autoShareOption': 'Все, у кого есть ссылка, могут редактировать (Editor)',
+  'research.autoShareHint': 'Позволяет сразу просматривать и редактировать документ в панели разделенного экрана без повторного входа.',
+  'research.confirmExport': 'Экспортировать и открыть сейчас',
+
+  'research.syncPush': 'Отправить в Docs',
+  'research.syncPushing': 'Обновление в Google Docs...',
+  'research.syncPushSuccess': 'Google Docs обновлен!',
+  'research.syncPushTooltip': 'Обновить Google Docs содержимым этого черновика (Push)',
+  'research.syncPull': 'Забрать из Docs',
+  'research.syncPulling': 'Получение правок команды...',
+  'research.syncPullSuccess': 'Черновик обновлен из Google Docs!',
+  'research.syncPullTooltip': 'Забрать последние правки команды из Google Docs в черновик (Pull)',
+  'research.connectedDocBadge': 'Связанный документ',
+  'research.askAgentWriteTitle': 'Попросить агента написать/доработать черновик',
+  'research.searchDraftTitle': 'Поиск по черновику (Ctrl+F)',
+  'research.searchCloseTitle': 'Закрыть поиск',
+  'research.clearDocUrlTitle': 'Очистить URL документа',
+  'research.reloadPreviewTitle': 'Перезагрузить предпросмотр',
+  'research.undoRollbackTitle': 'Отменить/откатить последние действия агента в этом Google Doc',
+  'research.searchMatchesCount': '{count} совпадений',
 }
 
 export default ru

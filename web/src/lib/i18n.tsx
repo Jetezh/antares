@@ -1364,10 +1364,19 @@ const en = {
   'research.syncPush': 'Push to Docs',
   'research.syncPushing': 'Updating Google Docs...',
   'research.syncPushSuccess': 'Google Docs Updated!',
+  'research.syncPushTooltip': 'Update Google Docs with this draft content (Push)',
   'research.syncPull': 'Pull from Docs',
   'research.syncPulling': 'Pulling changes...',
   'research.syncPullSuccess': 'Draft Updated from Docs!',
+  'research.syncPullTooltip': 'Pull latest changes edited by team from Google Docs into draft (Pull)',
   'research.connectedDocBadge': 'Linked Doc',
+  'research.askAgentWriteTitle': 'Ask Agent to Write / Revise Draft',
+  'research.searchDraftTitle': 'Search in draft (Ctrl+F)',
+  'research.searchCloseTitle': 'Close search',
+  'research.clearDocUrlTitle': 'Clear document URL',
+  'research.reloadPreviewTitle': 'Reload Preview',
+  'research.undoRollbackTitle': 'Undo / rollback recent agent changes in this Google Doc',
+  'research.searchMatchesCount': '{count} matches',
 } as const
 
 export type MessageKey = keyof typeof en

@@ -878,6 +878,32 @@ const ja: Dict = {
   'research.exportedGdocsSuccess': 'Google Docs を作成しました！',
   'research.openExportedDoc': 'Google Docs を開く',
   'research.draftTitlePlaceholder': 'ドキュメント名 (例: 第3章 システム設計)...',
+
+  'research.exportModalTitle': '下書きを Google Docs にエクスポート',
+  'research.exportModalDesc': 'この下書きから直接 Google Drive 上に正式な Google Docs ドキュメントを作成します。',
+  'research.step1Title': '1. Google アカウント連携状態',
+  'research.step2Title': '2. Google Drive ドキュメント名',
+  'research.step3Title': '3. 共有アクセス権限',
+  'research.autoShareOption': 'リンクを知っている全員が編集可能 (Editor)',
+  'research.autoShareHint': '再ログインや Cookie 制限なしで、分割ビューで即座に表示・編集できます。',
+  'research.confirmExport': '今すぐエクスポートして表示',
+
+  'research.syncPush': 'Docs にプッシュ',
+  'research.syncPushing': 'Google Docs を更新中...',
+  'research.syncPushSuccess': 'Google Docs を更新しました！',
+  'research.syncPushTooltip': 'この下書き内容で Google Docs を更新 (Push)',
+  'research.syncPull': 'Docs からプル',
+  'research.syncPulling': 'チームの変更を取得中...',
+  'research.syncPullSuccess': 'Google Docs から下書きを更新しました！',
+  'research.syncPullTooltip': 'Google Docs の最新の編集内容を下書きに反映 (Pull)',
+  'research.connectedDocBadge': 'リンク済みドキュメント',
+  'research.askAgentWriteTitle': 'エージェントに下書きの作成・推敲を依頼',
+  'research.searchDraftTitle': '下書き内を検索 (Ctrl+F)',
+  'research.searchCloseTitle': '検索を閉じる',
+  'research.clearDocUrlTitle': 'ドキュメント URL をクリア',
+  'research.reloadPreviewTitle': 'プレビューを再読み込み',
+  'research.undoRollbackTitle': 'この Google Doc でのエージェントの最近の変更を元に戻す/ロールバック',
+  'research.searchMatchesCount': '{count} 件一致',
 }
 
 export default ja

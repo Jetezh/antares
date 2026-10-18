@@ -1212,10 +1212,19 @@ const id: Dict = {
   'research.syncPush': 'Push ke Docs',
   'research.syncPushing': 'Memperbarui Google Docs...',
   'research.syncPushSuccess': 'Google Docs Berhasil Diperbarui!',
+  'research.syncPushTooltip': 'Perbarui isi Google Docs mengikuti draf naskah ini (Push)',
   'research.syncPull': 'Pull dari Docs',
   'research.syncPulling': 'Menarik revisi tim...',
   'research.syncPullSuccess': 'Draf Diperbarui dari Google Docs!',
+  'research.syncPullTooltip': 'Tarik perubahan terbaru yang diedit oleh tim di Google Docs ke draf naskah (Pull)',
   'research.connectedDocBadge': 'Tautan Dokumen',
+  'research.askAgentWriteTitle': 'Minta Agen Menulis / Merevisi Draf Ini',
+  'research.searchDraftTitle': 'Cari kata di draf (Ctrl+F)',
+  'research.searchCloseTitle': 'Tutup pencarian',
+  'research.clearDocUrlTitle': 'Hapus / Bersihkan URL Dokumen',
+  'research.reloadPreviewTitle': 'Muat Ulang Pratinjau',
+  'research.undoRollbackTitle': 'Undo / Rollback perubahan terakhir yang dilakukan agen di Google Doc ini',
+  'research.searchMatchesCount': '{count} hasil',
 }
 
 export default id

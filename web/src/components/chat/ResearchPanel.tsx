@@ -1149,8 +1149,8 @@ ${bodyHtml}
                       'h-7 w-7 transition-colors',
                       syncPushSuccess ? 'text-emerald-500 font-semibold' : 'text-muted-foreground hover:text-foreground',
                     )}
-                    title={syncPushing ? t('research.syncPushing') : 'Perbarui isi Google Docs mengikuti draf naskah ini (Push)'}
-                    aria-label="Push to Google Docs"
+                    title={syncPushing ? t('research.syncPushing') : t('research.syncPushTooltip')}
+                    aria-label={t('research.syncPush')}
                   >
                     {syncPushing ? (
                       <Spinner className="size-3.5 animate-spin" />
@@ -1170,8 +1170,8 @@ ${bodyHtml}
                       'h-7 w-7 transition-colors',
                       syncPullSuccess ? 'text-emerald-500 font-semibold' : 'text-muted-foreground hover:text-foreground',
                     )}
-                    title={syncPulling ? t('research.syncPulling') : 'Tarik perubahan terbaru yang diedit oleh tim di Google Docs ke draf naskah (Pull)'}
-                    aria-label="Pull from Google Docs"
+                    title={syncPulling ? t('research.syncPulling') : t('research.syncPullTooltip')}
+                    aria-label={t('research.syncPull')}
                   >
                     {syncPulling ? (
                       <Spinner className="size-3.5 animate-spin" />
@@ -1194,8 +1194,8 @@ ${bodyHtml}
                       `Berikut adalah draf ${draftTitle}:\n\n\`\`\`markdown\n${draftContent}\n\`\`\`\n\nMohon bantu revisi/lengkapi naskah ini (tambahkan diagram/flowchart atau tabel jika relevan).`,
                     )
                   }}
-                  title="Minta Agen Menulis / Merevisi Draf Ini"
-                  aria-label="Minta Agen Tulis"
+                  title={t('research.askAgentWriteTitle')}
+                  aria-label={t('research.askAgentWriteTitle')}
                 >
                   <Article className="size-3.5" />
                 </Button>
@@ -1206,8 +1206,8 @@ ${bodyHtml}
                 variant={draftSearchOpen ? 'default' : 'outline'}
                 className="h-8 w-8 shrink-0"
                 onClick={() => setDraftSearchOpen(!draftSearchOpen)}
-                title="Cari kata di draf (Ctrl+F)"
-                aria-label="Cari kata di draf"
+                title={t('research.searchDraftTitle')}
+                aria-label={t('research.searchDraftTitle')}
               >
                 <MagnifyingGlass className="size-3.5" />
               </Button>
@@ -1232,9 +1232,10 @@ ${bodyHtml}
                     try {
                       const escaped = draftSearchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
                       const matches = draftContent.match(new RegExp(escaped, 'gi'))
-                      return `${matches ? matches.length : 0} hasil`
+                      const count = matches ? matches.length : 0
+                      return t('research.searchMatchesCount', { count: String(count) })
                     } catch {
-                      return '0 hasil'
+                      return t('research.searchMatchesCount', { count: '0' })
                     }
                   })()}
                 </span>
@@ -1247,7 +1248,8 @@ ${bodyHtml}
                   setDraftSearchOpen(false)
                 }}
                 className="size-7"
-                title="Tutup pencarian"
+                title={t('research.searchCloseTitle')}
+                aria-label={t('research.searchCloseTitle')}
               >
                 <X className="size-3.5" />
               </Button>
@@ -1354,7 +1356,8 @@ ${bodyHtml}
                   type="button"
                   onClick={handleClearDoc}
                   className="absolute right-2 p-0.5 text-muted-foreground hover:text-foreground"
-                  title="Hapus / Bersihkan URL Dokumen"
+                  title={t('research.clearDocUrlTitle')}
+                  aria-label={t('research.clearDocUrlTitle')}
                 >
                   <X className="size-3.5" />
                 </button>
@@ -1407,7 +1410,8 @@ ${bodyHtml}
                   variant="outline"
                   onClick={() => setFrameKey((k) => k + 1)}
                   className="h-8 w-8 shrink-0"
-                  title="Reload Preview"
+                  title={t('research.reloadPreviewTitle')}
+                  aria-label={t('research.reloadPreviewTitle')}
                 >
                   <ArrowsClockwise className="size-4" />
                 </Button>
@@ -1421,7 +1425,8 @@ ${bodyHtml}
                       'h-8 gap-1 px-2 text-xs transition-colors',
                       rollbackSuccess ? 'border-emerald-500 text-emerald-500' : 'text-muted-foreground hover:text-foreground',
                     )}
-                    title="Undo / Rollback perubahan terakhir yang dilakukan agen di Google Doc ini"
+                    title={t('research.undoRollbackTitle')}
+                    aria-label={t('research.undoRollbackTitle')}
                   >
                     {rollingBack ? (
                       <Spinner className="size-3.5 animate-spin" />

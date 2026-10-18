@@ -876,6 +876,32 @@ const zh: Dict = {
   'research.exportedGdocsSuccess': '已成功创建 Google Docs！',
   'research.openExportedDoc': '打开 Google Docs',
   'research.draftTitlePlaceholder': '文档标题 (例如: 第三章 - 系统设计)...',
+
+  'research.exportModalTitle': '导出草稿至 Google Docs',
+  'research.exportModalDesc': '直接从当前草稿在 Google Drive 中生成正式 Google Docs 文档。',
+  'research.step1Title': '1. Google 账户关联状态',
+  'research.step2Title': '2. Google Drive 文档标题',
+  'research.step3Title': '3. 自动共享与访问权限',
+  'research.autoShareOption': '知道链接的任何人均可编辑 (Editor)',
+  'research.autoShareHint': '支持在分屏视图直接查看和编辑，无需重复登录或受 Cookie 限制。',
+  'research.confirmExport': '立即导出并查看',
+
+  'research.syncPush': '推送到 Docs',
+  'research.syncPushing': '正在同步至 Google Docs...',
+  'research.syncPushSuccess': 'Google Docs 已更新！',
+  'research.syncPushTooltip': '将当前草稿内容更新同步至 Google Docs (Push)',
+  'research.syncPull': '从 Docs 拉取',
+  'research.syncPulling': '正在拉取团队修改...',
+  'research.syncPullSuccess': '草稿已从 Google Docs 更新！',
+  'research.syncPullTooltip': '从 Google Docs 拉取团队最新修改并合并至草稿 (Pull)',
+  'research.connectedDocBadge': '已关联文档',
+  'research.askAgentWriteTitle': '让智能体编写/修改此草稿',
+  'research.searchDraftTitle': '在草稿中查找 (Ctrl+F)',
+  'research.searchCloseTitle': '关闭查找',
+  'research.clearDocUrlTitle': '清除文档 URL',
+  'research.reloadPreviewTitle': '重新加载预览',
+  'research.undoRollbackTitle': '撤销/回滚智能体在此 Google Doc 中的最近修改',
+  'research.searchMatchesCount': '{count} 条结果',
 }
 
 export default zh
