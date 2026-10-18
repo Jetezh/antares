@@ -1199,6 +1199,15 @@ const id: Dict = {
   'research.exportedGdocsSuccess': 'Google Docs Berhasil Dibuat!',
   'research.openExportedDoc': 'Buka Google Docs',
   'research.draftTitlePlaceholder': 'Judul Dokumen (misal: Bab 3 - Perancangan Sistem)...',
+
+  'research.exportModalTitle': 'Ekspor Draf ke Google Docs',
+  'research.exportModalDesc': 'Buat dokumen resmi Google Docs di Google Drive Anda secara langsung dari draf ini.',
+  'research.step1Title': '1. Status Koneksi Akun Google',
+  'research.step2Title': '2. Judul Dokumen di Google Drive',
+  'research.step3Title': '3. Hak Akses & Izin Berbagi Otomatis',
+  'research.autoShareOption': 'Siapa saja yang memiliki link dapat mengedit (Editor)',
+  'research.autoShareHint': 'Membuat dokumen langsung dapat dibuka dan diedit di panel Split View tanpa perlu login ulang atau terblokir cookie.',
+  'research.confirmExport': 'Ekspor & Tampilkan Sekarang',
 }
 
 export default id

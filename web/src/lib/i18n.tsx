@@ -1351,6 +1351,15 @@ const en = {
   'research.exportedGdocsSuccess': 'Google Doc Created!',
   'research.openExportedDoc': 'Open Google Doc',
   'research.draftTitlePlaceholder': 'Document Title (e.g. Chapter 3 - System Design)...',
+
+  'research.exportModalTitle': 'Export Draft to Google Docs',
+  'research.exportModalDesc': 'Create an official Google Doc on your Google Drive directly from this draft.',
+  'research.step1Title': '1. Google Account Connection',
+  'research.step2Title': '2. Document Title on Google Drive',
+  'research.step3Title': '3. Sharing Access & Permissions',
+  'research.autoShareOption': 'Anyone with the link can edit (Editor)',
+  'research.autoShareHint': 'Allows immediate viewing and editing in the Split View panel without requiring login or third-party cookies.',
+  'research.confirmExport': 'Export & Open in Google Docs',
 } as const
 
 export type MessageKey = keyof typeof en

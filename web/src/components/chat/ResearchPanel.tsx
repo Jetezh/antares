@@ -318,6 +318,8 @@ export const ResearchPanel = memo(function ResearchPanel({
   const [exportingGdocs, setExportingGdocs] = useState(false)
   const [exportedDocUrl, setExportedDocUrl] = useState('')
   const [exportError, setExportError] = useState('')
+  const [exportModalOpen, setExportModalOpen] = useState(false)
+  const [autoShareWithLink, setAutoShareWithLink] = useState(true)
   const [draftSearchOpen, setDraftSearchOpen] = useState(false)
   const [draftSearchQuery, setDraftSearchQuery] = useState('')
 
@@ -647,11 +649,17 @@ ${bodyHtml}
         {
           title: draftTitle,
           html: fullHtml,
+          auto_share: autoShareWithLink,
+          share_role: 'writer',
         },
       )
       if (res.document_url) {
         setExportedDocUrl(res.document_url)
         setDocUrl(res.document_url)
+        setPreviewActive(true)
+        setExportModalOpen(false)
+        // Automatically switch to Google Docs tab to view the document live
+        setTab('gdocs')
       }
     } catch (err: any) {
       setExportError(err?.message || 'Gagal mengekspor dokumen ke Google Docs')
@@ -1058,20 +1066,15 @@ ${bodyHtml}
                 </button>
               </div>
 
-              {/* Action: Export to Google Docs */}
+              {/* Action: Export to Google Docs (Opens confirmation & UX guide dialog) */}
               <Button
                 size="sm"
-                onClick={handleExportToGoogleDocs}
-                disabled={exportingGdocs || !googleConnected}
+                onClick={() => setExportModalOpen(true)}
                 className="h-8 gap-1.5 bg-emerald-600 px-3 text-xs text-white hover:bg-emerald-700"
-                title={googleConnected ? t('research.exportGdocs') : 'Hubungkan akun Google di Pengaturan terlebih dahulu'}
+                title={t('research.exportGdocs')}
               >
-                {exportingGdocs ? (
-                  <Spinner className="size-3.5 animate-spin" />
-                ) : (
-                  <CloudArrowUp className="size-4" />
-                )}
-                <span>{exportingGdocs ? t('research.exportingGdocs') : t('research.exportGdocs')}</span>
+                <CloudArrowUp className="size-4" />
+                <span>{t('research.exportGdocs')}</span>
               </Button>
 
               {onInsertToChat ? (
@@ -2046,6 +2049,109 @@ ${bodyHtml}
           <DialogFooter>
             <Button size="sm" onClick={() => setOauthGuideOpen(false)}>
               {t('research.closeGuide')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Export to Google Docs Guide & Confirmation Modal */}
+      <Dialog open={exportModalOpen} onOpenChange={setExportModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CloudArrowUp className="size-5 text-emerald-500" />
+              <span>{t('research.exportModalTitle')}</span>
+            </DialogTitle>
+            <DialogDescription>{t('research.exportModalDesc')}</DialogDescription>
+          </DialogHeader>
+
+          <DialogBody className="space-y-4 text-xs">
+            {/* Step 1: Google Account Checklist */}
+            <div className="space-y-2 rounded-[var(--radius-md)] border border-border bg-card p-3">
+              <p className="font-semibold text-foreground">{t('research.step1Title')}</p>
+              {googleConnected ? (
+                <div className="flex items-center gap-2 font-medium text-emerald-500">
+                  <CheckCircle className="size-4 shrink-0" />
+                  <span>Akun Google Terhubung (OAuth)</span>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 font-medium text-amber-500">
+                    <WarningCircle className="size-4 shrink-0" />
+                    <span>Akun Google Belum Terhubung</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Diperlukan koneksi Google Drive untuk membuat file dokumen secara otomatis.
+                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-7 gap-1.5 bg-emerald-600 text-[11px] text-white hover:bg-emerald-700"
+                    onClick={() => {
+                      setExportModalOpen(false)
+                      setSettingsTab('gdocs')
+                      setSettingsOpen(true)
+                    }}
+                  >
+                    <Key className="size-3.5" />
+                    <span>Hubungkan Akun Google di Pengaturan</span>
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Step 2: Document Title */}
+            <div className="space-y-2 rounded-[var(--radius-md)] border border-border bg-card p-3">
+              <p className="font-semibold text-foreground">{t('research.step2Title')}</p>
+              <Input
+                type="text"
+                placeholder={t('research.draftTitlePlaceholder')}
+                value={draftTitle}
+                onChange={(e) => {
+                  setDraftTitle(e.target.value)
+                  try {
+                    localStorage.setItem('antares:draft-title', e.target.value)
+                  } catch {}
+                }}
+                className="h-8 text-xs font-medium"
+              />
+            </div>
+
+            {/* Step 3: Sharing Access & Permissions */}
+            <div className="space-y-2 rounded-[var(--radius-md)] border border-border bg-card p-3">
+              <p className="font-semibold text-foreground">{t('research.step3Title')}</p>
+              <div className="flex items-start justify-between gap-3 pt-1">
+                <div className="space-y-1">
+                  <label htmlFor="auto-share" className="font-medium text-foreground cursor-pointer text-xs">
+                    {t('research.autoShareOption')}
+                  </label>
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">
+                    {t('research.autoShareHint')}
+                  </p>
+                </div>
+                <Switch
+                  id="auto-share"
+                  checked={autoShareWithLink}
+                  onCheckedChange={setAutoShareWithLink}
+                  className="shrink-0"
+                />
+              </div>
+            </div>
+          </DialogBody>
+
+          <DialogFooter className="flex items-center justify-between">
+            <Button variant="outline" size="sm" onClick={() => setExportModalOpen(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button
+              size="sm"
+              disabled={!googleConnected || exportingGdocs}
+              loading={exportingGdocs}
+              onClick={handleExportToGoogleDocs}
+              className="gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700"
+            >
+              <CloudArrowUp className="size-3.5" />
+              <span>{exportingGdocs ? t('research.exportingGdocs') : t('research.confirmExport')}</span>
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -33,10 +33,18 @@ func extractGoogleDocID(raw string) string {
 
 func (s *Server) handleGetResearchSettings(w http.ResponseWriter, r *http.Request) {
 	cfg := s.config()
+	apiKey := cfg.Research.Zotero.APIKey
+	if apiKey != "" {
+		apiKey = config.MaskSecret(apiKey)
+	}
+	oauthSecret := cfg.Research.GDocs.OAuthClientSecret
+	if oauthSecret != "" {
+		oauthSecret = config.MaskSecret(oauthSecret)
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"zotero": map[string]any{
 			"user_id": cfg.Research.Zotero.UserID,
-			"api_key": cfg.Research.Zotero.APIKey,
+			"api_key": apiKey,
 		},
 		"gdocs": map[string]any{
 			"method":              cfg.Research.GDocs.Method,
@@ -44,12 +52,15 @@ func (s *Server) handleGetResearchSettings(w http.ResponseWriter, r *http.Reques
 			"document_url":        cfg.Research.GDocs.DocumentURL,
 			"document_id":         cfg.Research.GDocs.DocumentID,
 			"oauth_client_id":     cfg.Research.GDocs.OAuthClientID,
-			"oauth_client_secret": cfg.Research.GDocs.OAuthClientSecret,
+			"oauth_client_secret": oauthSecret,
 		},
 	})
 }
 
 func (s *Server) handleSaveResearchSettings(w http.ResponseWriter, r *http.Request) {
+	if s.requireDashboardPassword(w, r) {
+		return
+	}
 	var body struct {
 		Zotero struct {
 			UserID *string `json:"user_id"`
@@ -76,7 +87,7 @@ func (s *Server) handleSaveResearchSettings(w http.ResponseWriter, r *http.Reque
 			uID = *body.Zotero.UserID
 		}
 		aKey := ""
-		if body.Zotero.APIKey != nil {
+		if body.Zotero.APIKey != nil && !strings.Contains(*body.Zotero.APIKey, "••••") {
 			aKey = *body.Zotero.APIKey
 		}
 		if err := tools.ValidateZoteroCreds(uID, aKey); err != nil {
@@ -103,7 +114,7 @@ func (s *Server) handleSaveResearchSettings(w http.ResponseWriter, r *http.Reque
 			cID = *body.GDocs.OAuthClientID
 		}
 		cSec := ""
-		if body.GDocs.OAuthClientSecret != nil {
+		if body.GDocs.OAuthClientSecret != nil && !strings.Contains(*body.GDocs.OAuthClientSecret, "••••") {
 			cSec = *body.GDocs.OAuthClientSecret
 		}
 		if err := tools.ValidateGoogleOAuthCreds(cID, cSec); err != nil {
@@ -121,7 +132,7 @@ func (s *Server) handleSaveResearchSettings(w http.ResponseWriter, r *http.Reque
 	if body.Zotero.UserID != nil {
 		cfg.Research.Zotero.UserID = *body.Zotero.UserID
 	}
-	if body.Zotero.APIKey != nil {
+	if body.Zotero.APIKey != nil && !strings.Contains(*body.Zotero.APIKey, "••••") {
 		cfg.Research.Zotero.APIKey = *body.Zotero.APIKey
 	}
 	if body.GDocs.Method != nil {
@@ -142,7 +153,7 @@ func (s *Server) handleSaveResearchSettings(w http.ResponseWriter, r *http.Reque
 	if body.GDocs.OAuthClientID != nil {
 		cfg.Research.GDocs.OAuthClientID = *body.GDocs.OAuthClientID
 	}
-	if body.GDocs.OAuthClientSecret != nil {
+	if body.GDocs.OAuthClientSecret != nil && !strings.Contains(*body.GDocs.OAuthClientSecret, "••••") {
 		cfg.Research.GDocs.OAuthClientSecret = *body.GDocs.OAuthClientSecret
 	}
 
@@ -157,6 +168,9 @@ func (s *Server) handleSaveResearchSettings(w http.ResponseWriter, r *http.Reque
 }
 
 func (s *Server) handleGDocsRollback(w http.ResponseWriter, r *http.Request) {
+	if s.requireDashboardPassword(w, r) {
+		return
+	}
 	ctx := r.Context()
 	var body struct {
 		DocumentID string `json:"document_id"`
@@ -204,10 +218,15 @@ func (s *Server) handleGDocsRollback(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGDocsExport(w http.ResponseWriter, r *http.Request) {
+	if s.requireDashboardPassword(w, r) {
+		return
+	}
 	ctx := r.Context()
 	var body struct {
-		Title string `json:"title"`
-		HTML  string `json:"html"`
+		Title      string `json:"title"`
+		HTML       string `json:"html"`
+		AutoShare  *bool  `json:"auto_share"`  // default true: anyone with link can edit
+		ShareRole  string `json:"share_role"`  // writer (edit) or reader (view)
 	}
 	if err := decodeBody(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, err)
@@ -284,6 +303,33 @@ func (s *Server) handleGDocsExport(w http.ResponseWriter, r *http.Request) {
 	if err := json.Unmarshal(respBytes, &driveResp); err != nil {
 		writeError(w, http.StatusInternalServerError, fmt.Errorf("parse drive response: %w", err))
 		return
+	}
+
+	// Auto-share permission: Set "anyone with the link can edit/view"
+	// This allows the iframe in split view to immediately load and edit without login or cookie blocks!
+	shouldShare := true
+	if body.AutoShare != nil {
+		shouldShare = *body.AutoShare
+	}
+	if shouldShare {
+		role := strings.TrimSpace(body.ShareRole)
+		if role == "" {
+			role = "writer" // default: editor access so user can type immediately in split view
+		}
+		permURL := fmt.Sprintf("https://www.googleapis.com/drive/v3/files/%s/permissions", url.PathEscape(driveResp.ID))
+		permPayload, _ := json.Marshal(map[string]string{
+			"role": role,
+			"type": "anyone",
+		})
+		permReq, err := http.NewRequestWithContext(ctx, "POST", permURL, bytes.NewReader(permPayload))
+		if err == nil {
+			permReq.Header.Set("Authorization", "Bearer "+token)
+			permReq.Header.Set("Content-Type", "application/json")
+			permResp, err := client.Do(permReq)
+			if err == nil {
+				permResp.Body.Close()
+			}
+		}
 	}
 
 	// Post-creation enforcement: Call Google Docs REST API to ensure 100% Times New Roman across the entire document
@@ -432,6 +478,9 @@ func (s *Server) handleGetDraft(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSaveDraft(w http.ResponseWriter, r *http.Request) {
+	if s.requireDashboardPassword(w, r) {
+		return
+	}
 	ctx := r.Context()
 	var body struct {
 		Title   string `json:"title"`
@@ -459,6 +508,22 @@ func (s *Server) handleOpenBrowser(w http.ResponseWriter, r *http.Request) {
 	target := strings.TrimSpace(body.URL)
 	if target == "" {
 		writeError(w, http.StatusBadRequest, fmt.Errorf("url cannot be empty"))
+		return
+	}
+
+	// Strictly validate URL to prevent command injection, flag injection, and local file access
+	if strings.HasPrefix(target, "-") {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("security violation: URL cannot begin with a dash"))
+		return
+	}
+	u, err := url.ParseRequestURI(target)
+	if err != nil || u.Host == "" {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("security violation: malformed URL: %w", err))
+		return
+	}
+	scheme := strings.ToLower(u.Scheme)
+	if scheme != "https" && scheme != "http" {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("security violation: unsupported URL scheme %q; only http/https are permitted", scheme))
 		return
 	}
 
