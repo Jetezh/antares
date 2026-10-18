@@ -412,9 +412,14 @@ func redactMap(m map[string]any, prefix string) {
 	}
 }
 
-func maskSecret(s string) string {
+// MaskSecret returns a masked representation of a secret string.
+func MaskSecret(s string) string {
 	if len(s) <= 8 {
 		return "••••••••"
 	}
 	return s[:4] + strings.Repeat("•", 8) + s[len(s)-4:]
+}
+
+func maskSecret(s string) string {
+	return MaskSecret(s)
 }

@@ -1317,6 +1317,8 @@ const en = {
 
   'research.gdocsConnectedOauth': 'Connected with Google Docs (OAuth)',
   'research.connectGoogle': 'Connect Google Account (Sign In)',
+  'research.oauthBrowserWaiting': 'If the sign-in window does not open automatically, open it directly in your browser:',
+  'research.openInBrowser': 'Open Google Sign-In in Browser',
   'research.disconnectGoogle': 'Disconnect',
   'research.authorizingGoogle': 'Waiting for Google authorization...',
   'research.checkPopupWindow': 'Complete sign-in in popup window',

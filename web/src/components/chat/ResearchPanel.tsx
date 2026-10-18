@@ -2033,43 +2033,68 @@ export const ResearchPanel = memo(function ResearchPanel({
                         ) : null}
                       </div>
                     ) : (
-                      <Button
-                        type="button"
-                        size="sm"
-                        disabled={!gdocsClientId || !gdocsClientSecret || connectingGoogle}
-                        className="w-full gap-1.5 bg-emerald-600 text-xs text-white hover:bg-emerald-700"
-                        onClick={async () => {
-                          setConnectingGoogle(true)
-                          try {
-                            await handleSaveSettings(false)
-                            const callbackUri = `${window.location.origin}/api/auth/google/callback`
-                            const res = await get<{ url: string }>(`/auth/google/url?redirect_uri=${encodeURIComponent(callbackUri)}`)
-                            if (res.url) {
-                              setAuthUrl(res.url)
-                              try {
-                                window.open(res.url, 'google_oauth', 'width=600,height=700')
-                              } catch {}
-                              const timer = setInterval(async () => {
+                      <div className="space-y-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={!gdocsClientId || !gdocsClientSecret || connectingGoogle}
+                          className="w-full gap-1.5 bg-emerald-600 text-xs text-white hover:bg-emerald-700"
+                          onClick={async () => {
+                            setConnectingGoogle(true)
+                            try {
+                              await handleSaveSettings(false)
+                              const callbackUri = `${window.location.origin}/api/auth/google/callback`
+                              const res = await get<{ url: string }>(`/auth/google/url?redirect_uri=${encodeURIComponent(callbackUri)}`)
+                              if (res.url) {
+                                setAuthUrl(res.url)
+                                post('/research/open-browser', { url: res.url }).catch(() => {})
                                 try {
-                                  const statusRes = await get<{ connected: boolean }>('/auth/google/status')
-                                  if (statusRes.connected) {
-                                    clearInterval(timer)
-                                    setGoogleConnected(true)
-                                    setConnectingGoogle(false)
-                                  }
+                                  window.open(res.url, 'google_oauth', 'width=600,height=700')
                                 } catch {}
-                              }, 1500)
-                            } else {
+                                const timer = setInterval(async () => {
+                                  try {
+                                    const statusRes = await get<{ connected: boolean }>('/auth/google/status')
+                                    if (statusRes.connected) {
+                                      clearInterval(timer)
+                                      setGoogleConnected(true)
+                                      setConnectingGoogle(false)
+                                    }
+                                  } catch {}
+                                }, 1500)
+                              } else {
+                                setConnectingGoogle(false)
+                              }
+                            } catch {
                               setConnectingGoogle(false)
                             }
-                          } catch {
-                            setConnectingGoogle(false)
-                          }
-                        }}
-                      >
-                        <Key className="size-3.5" />
-                        <span>{t('research.connectGoogle')}</span>
-                      </Button>
+                          }}
+                        >
+                          <Key className="size-3.5" />
+                          <span>{t('research.connectGoogle')}</span>
+                        </Button>
+                        {authUrl && connectingGoogle ? (
+                          <div className="rounded border border-amber-500/20 bg-amber-500/5 p-2 text-center text-xs">
+                            <p className="mb-1.5 text-muted-foreground text-[11px]">
+                              {t('research.oauthBrowserWaiting')}
+                            </p>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="h-7 w-full gap-1 text-[11px]"
+                              onClick={() => {
+                                post('/research/open-browser', { url: authUrl }).catch(() => {})
+                                try {
+                                  window.open(authUrl, '_blank')
+                                } catch {}
+                              }}
+                            >
+                              <ArrowSquareOut className="size-3" />
+                              <span>{t('research.openInBrowser')}</span>
+                            </Button>
+                          </div>
+                        ) : null}
+                      </div>
                     )}
                   </div>
                 )}

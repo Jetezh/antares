@@ -1165,6 +1165,8 @@ const id: Dict = {
 
   'research.gdocsConnectedOauth': 'Terhubung dengan Google Docs (OAuth)',
   'research.connectGoogle': 'Hubungkan Akun Google (Login)',
+  'research.oauthBrowserWaiting': 'Jika jendela login tidak terbuka otomatis, buka langsung di browser:',
+  'research.openInBrowser': 'Buka Login Google di Browser',
   'research.disconnectGoogle': 'Putuskan',
   'research.authorizingGoogle': 'Menunggu otorisasi Google...',
   'research.checkPopupWindow': 'Selesaikan login di jendela popup',

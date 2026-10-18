@@ -16,6 +16,10 @@ func TestDevicePairCLI(t *testing.T) {
 	t.Setenv("ANTARES_HOME", home)
 	t.Setenv("ANTARES_CONFIG", "")
 	t.Setenv("ANTARES_PORT", "18999")
+	if _, err := config.Reload(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = config.Reload() })
 
 	var out bytes.Buffer
 	if err := cmdDevicePair(&out, []string{"--name", "Test Mac", "--platform=desktop-macos", "--json"}); err != nil {

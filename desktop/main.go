@@ -23,7 +23,7 @@ import (
 )
 
 // Version is the desktop shell's version (set with -ldflags -X main.Version=…).
-var Version = "0.1.0"
+var Version = "0.8.8"
 
 //go:embed all:frontend
 var frontendFS embed.FS

@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils'
 import { copyText } from '@/lib/clipboard'
 import { useI18n } from '@/lib/i18n'
 import { getToken } from '@/lib/api'
+import DOMPurify from 'dompurify'
 
 /**
  * A small, dependency-free Markdown renderer covering what agent replies
@@ -247,7 +248,12 @@ function RichBlock({ block }: { block: Block }) {
       return (
         <div
           className="my-3 flex justify-center overflow-x-auto rounded-[var(--radius-md)] border border-border bg-card/40 p-3"
-          dangerouslySetInnerHTML={{ __html: block.svg }}
+          dangerouslySetInnerHTML={{
+            __html: DOMPurify.sanitize(block.svg, {
+              USE_PROFILES: { svg: true, svgFilters: true },
+              FORBID_TAGS: ['style'],
+            }),
+          }}
         />
       )
     case 'quote':
@@ -465,7 +471,12 @@ function CodeBlock({ code, lang }: { code: string; lang: string }) {
       {isSvg && showPreview ? (
         <div
           className="flex justify-center overflow-x-auto p-4"
-          dangerouslySetInnerHTML={{ __html: code }}
+          dangerouslySetInnerHTML={{
+            __html: DOMPurify.sanitize(code, {
+              USE_PROFILES: { svg: true, svgFilters: true },
+              FORBID_TAGS: ['style'],
+            }),
+          }}
         />
       ) : (
         <pre className="overflow-x-auto p-3">

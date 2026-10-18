@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -15,9 +16,18 @@ import (
 const googleOAuthTokenURL = "https://oauth2.googleapis.com/token"
 
 func getGoogleRedirectURI(r *http.Request) string {
-	// If custom query redirect_uri is passed, use it
+	// If custom query redirect_uri is passed, validate it points strictly to callback endpoint and legitimate host
 	if q := r.URL.Query().Get("redirect_uri"); q != "" {
-		return q
+		if u, err := url.Parse(q); err == nil && (strings.HasSuffix(u.Path, "/api/auth/google/callback") || u.Path == "/api/auth/google/callback") {
+			host := u.Hostname()
+			reqHost := r.Host
+			if h, _, err := net.SplitHostPort(r.Host); err == nil {
+				reqHost = h
+			}
+			if host == "" || host == reqHost || host == "localhost" || host == "127.0.0.1" {
+				return q
+			}
+		}
 	}
 	// Prefer origin header from web frontend
 	if origin := r.Header.Get("Origin"); origin != "" {
@@ -51,6 +61,9 @@ func getGoogleRedirectURI(r *http.Request) string {
 }
 
 func (s *Server) handleGoogleOAuthURL(w http.ResponseWriter, r *http.Request) {
+	if s.requireDashboardPassword(w, r) {
+		return
+	}
 	cfg := s.config()
 	clientID := strings.TrimSpace(cfg.Research.GDocs.OAuthClientID)
 	if clientID == "" {
@@ -64,12 +77,19 @@ func (s *Server) handleGoogleOAuthURL(w http.ResponseWriter, r *http.Request) {
 		"https://www.googleapis.com/auth/drive.file",
 	}
 
+	// Mint a cryptographically secure random state nonce to prevent OAuth CSRF/login manipulation
+	stateNonce := newID("gstate")
+	_ = s.db.SetKV(r.Context(), "research:oauth:state:"+stateNonce, redirectURI)
+
+	// Encode both redirectURI and stateNonce securely in state parameter
+	stateVal := fmt.Sprintf("%s|%s", stateNonce, redirectURI)
+
 	authURL := fmt.Sprintf(
 		"https://accounts.google.com/o/oauth2/v2/auth?client_id=%s&redirect_uri=%s&response_type=code&scope=%s&access_type=offline&prompt=consent&state=%s",
 		url.QueryEscape(clientID),
 		url.QueryEscape(redirectURI),
 		url.QueryEscape(strings.Join(scopes, " ")),
-		url.QueryEscape(redirectURI),
+		url.QueryEscape(stateVal),
 	)
 
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -82,8 +102,8 @@ func (s *Server) handleGoogleOAuthCallback(w http.ResponseWriter, r *http.Reques
 	ctx := r.Context()
 	code := r.URL.Query().Get("code")
 	if code == "" {
-		errParam := r.URL.Query().Get("error")
-		writeError(w, http.StatusBadRequest, fmt.Errorf("missing authorization code: %s", errParam))
+		errMsg := r.URL.Query().Get("error")
+		writeError(w, http.StatusBadRequest, fmt.Errorf("Google authorization denied or failed: %s", errMsg))
 		return
 	}
 
@@ -96,9 +116,25 @@ func (s *Server) handleGoogleOAuthCallback(w http.ResponseWriter, r *http.Reques
 	}
 
 	redirectURI := getGoogleRedirectURI(r)
-	if state := r.URL.Query().Get("state"); state != "" {
-		redirectURI = state
+	stateParam := r.URL.Query().Get("state")
+	if stateParam == "" {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("security violation: missing OAuth state parameter"))
+		return
 	}
+	parts := strings.SplitN(stateParam, "|", 2)
+	if len(parts) != 2 {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("security violation: malformed OAuth state token"))
+		return
+	}
+	nonce := parts[0]
+	expectedURI, _ := s.db.GetKV(ctx, "research:oauth:state:"+nonce)
+	if expectedURI == "" {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("security violation: invalid or expired OAuth state token (potential CSRF)"))
+		return
+	}
+	// One-time use: delete validated state nonce
+	_ = s.db.SetKV(ctx, "research:oauth:state:"+nonce, "")
+	redirectURI = parts[1]
 
 	// Exchange code for tokens
 	data := url.Values{}
@@ -126,11 +162,10 @@ func (s *Server) handleGoogleOAuthCallback(w http.ResponseWriter, r *http.Reques
 		RefreshToken string `json:"refresh_token"`
 		ExpiresIn    int    `json:"expires_in"`
 		TokenType    string `json:"token_type"`
-		Error        string `json:"error"`
+		Scope        string `json:"scope"`
 	}
-
 	if err := json.Unmarshal(bodyBytes, &tokenResp); err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Errorf("parsing token response: %w", err))
+		writeError(w, http.StatusInternalServerError, fmt.Errorf("failed to parse token response: %w", err))
 		return
 	}
 
@@ -139,7 +174,7 @@ func (s *Server) handleGoogleOAuthCallback(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Persist tokens in database store
+	// Persist tokens securely in database
 	_ = s.db.SetKV(ctx, "research:gdocs:access_token", tokenResp.AccessToken)
 	if tokenResp.RefreshToken != "" {
 		_ = s.db.SetKV(ctx, "research:gdocs:refresh_token", tokenResp.RefreshToken)
@@ -147,31 +182,34 @@ func (s *Server) handleGoogleOAuthCallback(w http.ResponseWriter, r *http.Reques
 	expiresAt := time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second).Unix()
 	_ = s.db.SetKV(ctx, "research:gdocs:token_expiry", strconv.FormatInt(expiresAt, 10))
 
-	// Return friendly self-closing HTML callback page
+	// Return a clean self-closing HTML callback page that notifies parent window
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	html := `<!DOCTYPE html>
 <html>
 <head>
+  <meta charset="utf-8">
   <title>Google Docs Connected</title>
   <style>
-    body { font-family: system-ui, -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #0c0d0e; color: #f0f0f0; text-align: center; }
-    .card { background: #16181a; border: 1px border #26292d; border-radius: 12px; padding: 32px 40px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
-    h2 { margin: 0 0 8px; color: #10b981; }
-    p { margin: 0 0 16px; color: #9ca3af; font-size: 14px; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #0b0f17; color: #f8fafc; }
+    .card { background: #1e293b; padding: 2rem; border-radius: 12px; text-align: center; max-width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); border: 1px solid #334155; }
+    h2 { color: #10b981; margin-top: 0; }
+    p { color: #94a3b8; font-size: 0.95rem; line-height: 1.5; }
   </style>
 </head>
 <body>
   <div class="card">
     <h2>Connected to Google Docs!</h2>
-    <p>Authentication successful. You can close this window now.</p>
+    <p>Akun Google berhasil dihubungkan ke Antares. Jendela ini akan tertutup otomatis dalam beberapa detik...</p>
   </div>
   <script>
-    if (window.opener) {
-      window.opener.postMessage({ type: 'gdocs:connected' }, '*');
-      setTimeout(function() { window.close(); }, 1200);
-    } else {
-      setTimeout(function() { window.location.href = '/'; }, 1500);
-    }
+    try {
+      if (window.opener) {
+        window.opener.postMessage({ type: 'antares:google-oauth-success' }, '*');
+      }
+    } catch (e) {}
+    setTimeout(function() {
+      window.close();
+    }, 1500);
   </script>
 </body>
 </html>`
@@ -179,6 +217,9 @@ func (s *Server) handleGoogleOAuthCallback(w http.ResponseWriter, r *http.Reques
 }
 
 func (s *Server) handleGoogleOAuthStatus(w http.ResponseWriter, r *http.Request) {
+	if s.requireDashboardPassword(w, r) {
+		return
+	}
 	ctx := r.Context()
 	cfg := s.config()
 	clientID := strings.TrimSpace(cfg.Research.GDocs.OAuthClientID)
@@ -196,6 +237,9 @@ func (s *Server) handleGoogleOAuthStatus(w http.ResponseWriter, r *http.Request)
 }
 
 func (s *Server) handleGoogleOAuthDisconnect(w http.ResponseWriter, r *http.Request) {
+	if s.requireDashboardPassword(w, r) {
+		return
+	}
 	ctx := r.Context()
 	_ = s.db.SetKV(ctx, "research:gdocs:access_token", "")
 	_ = s.db.SetKV(ctx, "research:gdocs:refresh_token", "")

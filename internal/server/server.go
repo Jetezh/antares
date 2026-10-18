@@ -320,7 +320,8 @@ func authExemptPath(p string) bool {
 	switch p {
 	case "/api/health", "/api/version",
 		"/api/auth/status", "/api/auth/login", "/api/auth/logout", "/api/auth/password",
-		"/api/devices/pair":
+		"/api/devices/pair",
+		"/api/auth/google/callback":
 		return true
 	}
 	return false

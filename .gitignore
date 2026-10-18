@@ -39,6 +39,7 @@ AGENTS.md
 
 # Release artifacts
 dist/
+stage/
 !internal/server/dist/
 !internal/server/dist/.gitkeep
 web/tsconfig.tsbuildinfo

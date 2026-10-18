@@ -46,6 +46,7 @@ const STAYS = [
   'streaming',
   'display',
   'logging',
+  'research',
 ]
 
 /** Top-level struct fields of Go's Config: the groups schema.go emits. */

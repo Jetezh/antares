@@ -1,3 +1,4 @@
+import DOMPurify from 'dompurify'
 import { useMemo, useState } from 'react'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
@@ -55,21 +56,40 @@ function parseBibTeX(bibSrc: string): Record<string, BibEntry> {
   return entries
 }
 
+function escapeHTML(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
 function renderMathHTML(tex: string, displayMode = false): string {
   try {
-    return katex.renderToString(tex.trim(), {
+    const rendered = katex.renderToString(tex.trim(), {
       displayMode,
       throwOnError: false,
     })
+    return DOMPurify.sanitize(rendered, {
+      ALLOWED_TAGS: [
+        'span', 'math', 'semantics', 'mrow', 'mi', 'mo', 'mn', 'annotation',
+        'annotation-xml', 'mfrac', 'msup', 'msub', 'msubsup', 'msqrt', 'mroot',
+        'table', 'tbody', 'tr', 'td', 'svg', 'path', 'line'
+      ],
+      ALLOWED_ATTR: ['class', 'style', 'aria-hidden', 'viewBox', 'd', 'width', 'height'],
+    })
   } catch {
-    return `<span class="text-destructive font-mono text-xs">${tex}</span>`
+    return `<span class="text-destructive font-mono text-xs">${escapeHTML(tex)}</span>`
   }
 }
 
 function renderInlineMath(text: string): string {
   // Replace $...$ inline math
-  return text.replace(/\$([^$]+)\$/g, (_, math) => {
+  const html = text.replace(/\$([^$]+)\$/g, (_, math) => {
     return renderMathHTML(math, false)
+  })
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: [
+      'span', 'math', 'semantics', 'mrow', 'mi', 'mo', 'mn', 'annotation',
+      'b', 'i', 'em', 'strong', 'sup', 'sub', 'code', 'br'
+    ],
+    ALLOWED_ATTR: ['class', 'style', 'aria-hidden'],
   })
 }
 

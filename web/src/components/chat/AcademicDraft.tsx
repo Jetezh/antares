@@ -15,7 +15,12 @@ interface Block {
 }
 
 function parseAcademicBlocks(src: string): Block[] {
-  const lines = src.replace(/\r\n/g, '\n').split('\n')
+  // Strip hidden wrapper divs and style tags completely so CSS can never leak into the DOM
+  const sanitizedSrc = src
+    .replace(/<div[^>]*style=[\"']?display:\s*none[\"']?[^>]*>[\s\S]*?<\/div>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+
+  const lines = sanitizedSrc.replace(/\r\n/g, '\n').split('\n')
   const blocks: Block[] = []
   let i = 0
 
@@ -103,6 +108,12 @@ function renderAcademicInline(str: string): string {
     .replace(/`([^`]+)`/g, '<code style="font-family: monospace; font-size: 10pt; background: #f1f5f9; padding: 1px 4px; border-radius: 3px;">$1</code>')
 }
 
+const safeHtml = (html: string) =>
+  DOMPurify.sanitize(html, { FORBID_TAGS: ['style'] })
+
+const safeSvg = (svg: string) =>
+  DOMPurify.sanitize(svg, { USE_PROFILES: { svg: true, svgFilters: true }, FORBID_TAGS: ['style'] })
+
 export const AcademicDraft = memo(function AcademicDraft({ content }: AcademicDraftProps) {
   const blocks = useMemo(() => parseAcademicBlocks(content), [content])
 
@@ -115,7 +126,7 @@ export const AcademicDraft = memo(function AcademicDraft({ content }: AcademicDr
               <h1
                 key={idx}
                 className="mt-6 mb-3 text-center font-serif text-[12pt] font-bold uppercase tracking-wider text-[#0f172a]"
-                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(renderAcademicInline(block.text || '')) }}
+                dangerouslySetInnerHTML={{ __html: safeHtml(renderAcademicInline(block.text || '')) }}
               />
             )
           }
@@ -124,7 +135,7 @@ export const AcademicDraft = memo(function AcademicDraft({ content }: AcademicDr
               <h2
                 key={idx}
                 className="mt-4 mb-2 text-left font-serif text-[12pt] font-bold text-[#0f172a]"
-                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(renderAcademicInline(block.text || '')) }}
+                dangerouslySetInnerHTML={{ __html: safeHtml(renderAcademicInline(block.text || '')) }}
               />
             )
           }
@@ -133,7 +144,7 @@ export const AcademicDraft = memo(function AcademicDraft({ content }: AcademicDr
               <h3
                 key={idx}
                 className="mt-3.5 mb-1 text-left font-serif text-[12pt] font-bold italic text-[#0f172a]"
-                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(renderAcademicInline(block.text || '')) }}
+                dangerouslySetInnerHTML={{ __html: safeHtml(renderAcademicInline(block.text || '')) }}
               />
             )
           }
@@ -141,7 +152,7 @@ export const AcademicDraft = memo(function AcademicDraft({ content }: AcademicDr
             <h4
               key={idx}
               className="mt-2.5 mb-1 text-left font-serif text-[12pt] font-medium text-[#0f172a]"
-              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(renderAcademicInline(block.text || '')) }}
+              dangerouslySetInnerHTML={{ __html: safeHtml(renderAcademicInline(block.text || '')) }}
             />
           )
         }
@@ -151,7 +162,7 @@ export const AcademicDraft = memo(function AcademicDraft({ content }: AcademicDr
             <div
               key={idx}
               className="my-4 flex justify-center overflow-x-auto bg-transparent p-0"
-              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(block.svg || '', { USE_PROFILES: { svg: true, svgFilters: true } }) }}
+              dangerouslySetInnerHTML={{ __html: safeSvg(block.svg || '') }}
             />
           )
         }
@@ -184,7 +195,7 @@ export const AcademicDraft = memo(function AcademicDraft({ content }: AcademicDr
                         key={i}
                         style={{ width: colWidths[i] }}
                         className="border border-slate-700/60 px-3 py-2 text-center font-bold text-[#0f172a]"
-                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(renderAcademicInline(h)) }}
+                        dangerouslySetInnerHTML={{ __html: safeHtml(renderAcademicInline(h)) }}
                       />
                     ))}
                   </tr>
@@ -201,7 +212,7 @@ export const AcademicDraft = memo(function AcademicDraft({ content }: AcademicDr
                             className={`border border-slate-700/60 px-3 py-2 align-middle text-[#1e293b] ${
                               isCenter ? 'text-center' : 'text-left'
                             }`}
-                            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(renderAcademicInline(c)) }}
+                            dangerouslySetInnerHTML={{ __html: safeHtml(renderAcademicInline(c)) }}
                           />
                         )
                       })}
@@ -223,7 +234,7 @@ export const AcademicDraft = memo(function AcademicDraft({ content }: AcademicDr
               <p
                 key={idx}
                 className="my-1.5 text-center font-serif text-[11pt] font-normal italic leading-snug text-slate-700"
-                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(renderAcademicInline(trimmed)) }}
+                dangerouslySetInnerHTML={{ __html: safeHtml(renderAcademicInline(trimmed)) }}
               />
             )
           }
@@ -233,7 +244,7 @@ export const AcademicDraft = memo(function AcademicDraft({ content }: AcademicDr
               <p
                 key={idx}
                 className="mt-4 mb-1 text-center font-serif text-[11pt] font-normal italic leading-snug text-slate-800"
-                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(renderAcademicInline(trimmed)) }}
+                dangerouslySetInnerHTML={{ __html: safeHtml(renderAcademicInline(trimmed)) }}
               />
             )
           }
@@ -242,7 +253,7 @@ export const AcademicDraft = memo(function AcademicDraft({ content }: AcademicDr
             <p
               key={idx}
               className="my-1.5 text-justify indent-8 font-serif text-[12pt] leading-[1.15] text-[#111827]"
-              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(renderAcademicInline(block.text)) }}
+              dangerouslySetInnerHTML={{ __html: safeHtml(renderAcademicInline(block.text)) }}
             />
           )
         }

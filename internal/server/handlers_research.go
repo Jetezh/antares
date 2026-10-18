@@ -173,11 +173,15 @@ func (s *Server) handleGDocsRollback(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 	var body struct {
-		DocumentID string `json:"document_id"`
+		DocumentID  string `json:"document_id"`
+		DocumentURL string `json:"document_url"`
 	}
 	_ = decodeBody(r, &body)
 
 	targetID := strings.TrimSpace(body.DocumentID)
+	if targetID == "" && body.DocumentURL != "" {
+		targetID = extractGoogleDocID(body.DocumentURL)
+	}
 	if targetID == "" {
 		cfg := s.config()
 		targetID = strings.TrimSpace(cfg.Research.GDocs.DocumentID)
@@ -187,6 +191,10 @@ func (s *Server) handleGDocsRollback(w http.ResponseWriter, r *http.Request) {
 	}
 	if targetID == "" {
 		writeError(w, http.StatusBadRequest, fmt.Errorf("document_id is required for rollback"))
+		return
+	}
+	if err := tools.ValidateGDocsDocID(targetID); err != nil {
+		writeError(w, http.StatusBadRequest, err)
 		return
 	}
 
@@ -312,8 +320,11 @@ func (s *Server) handleGDocsExport(w http.ResponseWriter, r *http.Request) {
 		shouldShare = *body.AutoShare
 	}
 	if shouldShare {
-		role := strings.TrimSpace(body.ShareRole)
-		if role == "" {
+		role := strings.TrimSpace(strings.ToLower(body.ShareRole))
+		switch role {
+		case "reader", "commenter", "writer":
+			// valid role
+		default:
 			role = "writer" // default: editor access so user can type immediately in split view
 		}
 		permURL := fmt.Sprintf("https://www.googleapis.com/drive/v3/files/%s/permissions", url.PathEscape(driveResp.ID))
@@ -334,116 +345,7 @@ func (s *Server) handleGDocsExport(w http.ResponseWriter, r *http.Request) {
 
 	// Post-creation enforcement: Call Google Docs REST API to ensure 100% Times New Roman across the entire document
 	// while PRESERVING bold, italic, and heading font weights
-	go func(docID, authToken string) {
-		gdocsReqURL := fmt.Sprintf("https://docs.googleapis.com/v1/documents/%s", url.PathEscape(docID))
-		infoReq, err := http.NewRequest("GET", gdocsReqURL, nil)
-		if err != nil {
-			return
-		}
-		infoReq.Header.Set("Authorization", "Bearer "+authToken)
-		c := &http.Client{Timeout: 15 * time.Second}
-		infoResp, err := c.Do(infoReq)
-		if err != nil {
-			return
-		}
-		defer infoResp.Body.Close()
-
-		var gdoc struct {
-			Body struct {
-				Content []struct {
-					StartIndex int `json:"startIndex"`
-					EndIndex   int `json:"endIndex"`
-					Paragraph  *struct {
-						ParagraphStyle *struct {
-							NamedStyleType string `json:"namedStyleType"`
-						} `json:"paragraphStyle"`
-						Elements []struct {
-							StartIndex int `json:"startIndex"`
-							EndIndex   int `json:"endIndex"`
-							TextRun    *struct {
-								Content   string `json:"content"`
-								TextStyle *struct {
-									Bold   bool `json:"bold"`
-									Italic bool `json:"italic"`
-								} `json:"textStyle"`
-							} `json:"textRun"`
-						} `json:"elements"`
-					} `json:"paragraph"`
-				} `json:"content"`
-			} `json:"body"`
-		}
-		if err := json.NewDecoder(infoResp.Body).Decode(&gdoc); err != nil || len(gdoc.Body.Content) == 0 {
-			return
-		}
-
-		var reqs []map[string]any
-
-		for _, item := range gdoc.Body.Content {
-			if item.Paragraph == nil {
-				continue
-			}
-			isHeading := item.Paragraph.ParagraphStyle != nil && strings.HasPrefix(item.Paragraph.ParagraphStyle.NamedStyleType, "HEADING_")
-
-			for _, el := range item.Paragraph.Elements {
-				if el.TextRun == nil || el.StartIndex >= el.EndIndex {
-					continue
-				}
-				isBold := isHeading
-				isItalic := false
-				if el.TextRun.TextStyle != nil {
-					if el.TextRun.TextStyle.Bold {
-						isBold = true
-					}
-					if el.TextRun.TextStyle.Italic {
-						isItalic = true
-					}
-				}
-
-				textStyle := map[string]any{
-					"weightedFontFamily": map[string]any{
-						"fontFamily": "Times New Roman",
-						"weight":     400,
-					},
-					"bold":   isBold,
-					"italic": isItalic,
-				}
-				if isBold {
-					textStyle["weightedFontFamily"] = map[string]any{
-						"fontFamily": "Times New Roman",
-						"weight":     700,
-					}
-				}
-
-				reqs = append(reqs, map[string]any{
-					"updateTextStyle": map[string]any{
-						"range": map[string]any{
-							"startIndex": el.StartIndex,
-							"endIndex":   el.EndIndex,
-						},
-						"textStyle": textStyle,
-						"fields":    "weightedFontFamily,bold,italic",
-					},
-				})
-			}
-		}
-
-		if len(reqs) == 0 {
-			return
-		}
-
-		// Execute in batches if there are many elements
-		batchReq := map[string]any{"requests": reqs}
-		bBytes, _ := json.Marshal(batchReq)
-		upReq, err := http.NewRequest("POST", fmt.Sprintf("https://docs.googleapis.com/v1/documents/%s:batchUpdate", url.PathEscape(docID)), bytes.NewReader(bBytes))
-		if err == nil {
-			upReq.Header.Set("Authorization", "Bearer "+authToken)
-			upReq.Header.Set("Content-Type", "application/json")
-			upResp, err := c.Do(upReq)
-			if err == nil {
-				upResp.Body.Close()
-			}
-		}
-	}(driveResp.ID, token)
+	go enforceTimesNewRoman(driveResp.ID, token)
 
 	docURL := fmt.Sprintf("https://docs.google.com/document/d/%s/edit", driveResp.ID)
 
@@ -470,8 +372,9 @@ func (s *Server) handleGDocsSyncPush(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 	var body struct {
-		DocumentID string `json:"document_id"`
-		HTML       string `json:"html"`
+		DocumentID  string `json:"document_id"`
+		DocumentURL string `json:"document_url"`
+		HTML        string `json:"html"`
 	}
 	if err := decodeBody(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, err)
@@ -479,6 +382,9 @@ func (s *Server) handleGDocsSyncPush(w http.ResponseWriter, r *http.Request) {
 	}
 
 	targetID := strings.TrimSpace(body.DocumentID)
+	if targetID == "" && body.DocumentURL != "" {
+		targetID = extractGoogleDocID(body.DocumentURL)
+	}
 	if targetID == "" {
 		cfg := s.config()
 		targetID = strings.TrimSpace(cfg.Research.GDocs.DocumentID)
@@ -488,6 +394,10 @@ func (s *Server) handleGDocsSyncPush(w http.ResponseWriter, r *http.Request) {
 	}
 	if targetID == "" {
 		writeError(w, http.StatusBadRequest, fmt.Errorf("document_id is required for sync push"))
+		return
+	}
+	if err := tools.ValidateGDocsDocID(targetID); err != nil {
+		writeError(w, http.StatusBadRequest, err)
 		return
 	}
 
@@ -541,6 +451,8 @@ func (s *Server) handleGDocsSyncPush(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	go enforceTimesNewRoman(targetID, token)
+
 	docURL := fmt.Sprintf("https://docs.google.com/document/d/%s/edit", targetID)
 
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -557,11 +469,15 @@ func (s *Server) handleGDocsSyncPull(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 	var body struct {
-		DocumentID string `json:"document_id"`
+		DocumentID  string `json:"document_id"`
+		DocumentURL string `json:"document_url"`
 	}
 	_ = decodeBody(r, &body)
 
 	targetID := strings.TrimSpace(body.DocumentID)
+	if targetID == "" && body.DocumentURL != "" {
+		targetID = extractGoogleDocID(body.DocumentURL)
+	}
 	if targetID == "" {
 		cfg := s.config()
 		targetID = strings.TrimSpace(cfg.Research.GDocs.DocumentID)
@@ -571,6 +487,10 @@ func (s *Server) handleGDocsSyncPull(w http.ResponseWriter, r *http.Request) {
 	}
 	if targetID == "" {
 		writeError(w, http.StatusBadRequest, fmt.Errorf("document_id is required for sync pull"))
+		return
+	}
+	if err := tools.ValidateGDocsDocID(targetID); err != nil {
+		writeError(w, http.StatusBadRequest, err)
 		return
 	}
 
@@ -646,6 +566,9 @@ func (s *Server) handleSaveDraft(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleOpenBrowser(w http.ResponseWriter, r *http.Request) {
+	if s.requireDashboardPassword(w, r) {
+		return
+	}
 	var body struct {
 		URL string `json:"url"`
 	}
@@ -691,4 +614,115 @@ func (s *Server) handleOpenBrowser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{"status": "opened", "url": target})
+}
+
+func enforceTimesNewRoman(docID, authToken string) {
+	gdocsReqURL := fmt.Sprintf("https://docs.googleapis.com/v1/documents/%s", url.PathEscape(docID))
+	infoReq, err := http.NewRequest("GET", gdocsReqURL, nil)
+	if err != nil {
+		return
+	}
+	infoReq.Header.Set("Authorization", "Bearer "+authToken)
+	c := &http.Client{Timeout: 15 * time.Second}
+	infoResp, err := c.Do(infoReq)
+	if err != nil {
+		return
+	}
+	defer infoResp.Body.Close()
+
+	var gdoc struct {
+		Body struct {
+			Content []struct {
+				StartIndex int `json:"startIndex"`
+				EndIndex   int `json:"endIndex"`
+				Paragraph  *struct {
+					ParagraphStyle *struct {
+						NamedStyleType string `json:"namedStyleType"`
+					} `json:"paragraphStyle"`
+					Elements []struct {
+						StartIndex int `json:"startIndex"`
+						EndIndex   int `json:"endIndex"`
+						TextRun    *struct {
+							Content   string `json:"content"`
+							TextStyle *struct {
+								Bold   bool `json:"bold"`
+								Italic bool `json:"italic"`
+							} `json:"textStyle"`
+						} `json:"textRun"`
+					} `json:"elements"`
+				} `json:"paragraph"`
+			} `json:"content"`
+		} `json:"body"`
+	}
+	if err := json.NewDecoder(infoResp.Body).Decode(&gdoc); err != nil || len(gdoc.Body.Content) == 0 {
+		return
+	}
+
+	var reqs []map[string]any
+
+	for _, item := range gdoc.Body.Content {
+		if item.Paragraph == nil {
+			continue
+		}
+		isHeading := item.Paragraph.ParagraphStyle != nil && strings.HasPrefix(item.Paragraph.ParagraphStyle.NamedStyleType, "HEADING_")
+
+		for _, el := range item.Paragraph.Elements {
+			if el.TextRun == nil || el.StartIndex >= el.EndIndex {
+				continue
+			}
+			isBold := isHeading
+			isItalic := false
+			if el.TextRun.TextStyle != nil {
+				if el.TextRun.TextStyle.Bold {
+					isBold = true
+				}
+				if el.TextRun.TextStyle.Italic {
+					isItalic = true
+				}
+			}
+
+			textStyle := map[string]any{
+				"weightedFontFamily": map[string]any{
+					"fontFamily": "Times New Roman",
+					"weight":     400,
+				},
+				"bold":   isBold,
+				"italic": isItalic,
+			}
+			if isBold {
+				textStyle["weightedFontFamily"] = map[string]any{
+					"fontFamily": "Times New Roman",
+					"weight":     700,
+				}
+			}
+
+			reqs = append(reqs, map[string]any{
+				"updateTextStyle": map[string]any{
+					"range": map[string]any{
+						"startIndex": el.StartIndex,
+						"endIndex":   el.EndIndex,
+					},
+					"textStyle": textStyle,
+					"fields":    "weightedFontFamily,bold,italic",
+				},
+			})
+		}
+	}
+
+	if len(reqs) == 0 {
+		return
+	}
+
+	// Execute in batches if there are many elements
+	batchReq := map[string]any{"requests": reqs}
+	bBytes, _ := json.Marshal(batchReq)
+	upReq, err := http.NewRequest("POST", fmt.Sprintf("https://docs.googleapis.com/v1/documents/%s:batchUpdate", url.PathEscape(docID)), bytes.NewReader(bBytes))
+	if err == nil {
+		upReq.Header.Set("Authorization", "Bearer "+authToken)
+		upReq.Header.Set("Content-Type", "application/json")
+		upResp, err := c.Do(upReq)
+		if err == nil {
+			upResp.Body.Close()
+		}
+	}
 }
