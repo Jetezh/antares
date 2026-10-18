@@ -38,10 +38,14 @@ import { ModelPicker } from '@/components/chat/ModelPicker'
 import { ReasoningPicker } from '@/components/chat/ReasoningPicker'
 import { ProjectPicker } from '@/components/chat/ProjectPicker'
 import { ProjectSidebar } from '@/components/chat/ProjectSidebar'
-import { ResearchPanel } from '@/components/chat/ResearchPanel'
 import { AnalyzeProjectDialog } from '@/components/chat/AnalyzeProjectDialog'
 import { EditMessageDialog } from '@/components/chat/EditMessageDialog'
 import { SubAgentPanel, type ActiveAgent } from '@/components/chat/SubAgentPanel'
+import { lazy, Suspense } from 'react'
+
+const ResearchPanel = lazy(() =>
+  import('@/components/chat/ResearchPanel').then((m) => ({ default: m.ResearchPanel })),
+)
 import {
   SlashPalette,
   useCommands,
@@ -1592,11 +1596,13 @@ export default function ChatPage() {
               isDraggingSplit && 'select-none pointer-events-none',
             )}
           >
-            <ResearchPanel
-              refreshKey={sidebarRefresh}
-              onClose={handleCloseResearchSplit}
-              onInsertToChat={handleInsertDraftToChat}
-            />
+            <Suspense fallback={<div className="flex h-full w-full items-center justify-center bg-card text-muted-foreground"><p className="text-xs">Memuat panel...</p></div>}>
+              <ResearchPanel
+                refreshKey={sidebarRefresh}
+                onClose={handleCloseResearchSplit}
+                onInsertToChat={handleInsertDraftToChat}
+              />
+            </Suspense>
           </div>
         </>
       ) : null}
