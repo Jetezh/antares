@@ -419,6 +419,10 @@ const en = {
 
   'chat.newConversation': 'New conversation',
   'chat.conversation': 'Conversation',
+  'chat.folderTree': 'Files & Folders',
+  'chat.folderTreeToggle': 'Toggle File Tree',
+  'chat.fileViewer': 'File Viewer',
+  'chat.researchDocs': 'Research & Docs',
   'chat.session': 'Session',
   'chat.placeholder': 'Ask anything…',
   'chat.send': 'Send',

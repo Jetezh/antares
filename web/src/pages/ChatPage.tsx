@@ -6,6 +6,7 @@ import {
   ArrowUp,
   BookOpen,
   FileText,
+  FolderOpen,
   Paperclip,
   Plus,
   SidebarSimple,
@@ -41,6 +42,13 @@ import { ProjectSidebar } from '@/components/chat/ProjectSidebar'
 import { AnalyzeProjectDialog } from '@/components/chat/AnalyzeProjectDialog'
 import { EditMessageDialog } from '@/components/chat/EditMessageDialog'
 import { SubAgentPanel, type ActiveAgent } from '@/components/chat/SubAgentPanel'
+import { ChatFolderTree } from '@/components/chat/ChatFolderTree'
+import {
+  FileViewerPanel,
+  type SelectedFile,
+  detectFileKind,
+  getFileIcon,
+} from '@/components/chat/FileViewerPanel'
 import { lazy, Suspense } from 'react'
 
 const ResearchPanel = lazy(() =>
@@ -239,6 +247,18 @@ export default function ChatPage() {
   // by sidebarMobileOpen (starts closed so the chat has the full width).
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false)
+  const [folderTreeOpen, setFolderTreeOpen] = useState(() => {
+    try {
+      const v = localStorage.getItem('antares:chat-folder-tree-open')
+      return v === 'true'
+    } catch {
+      return false
+    }
+  })
+  const folderTreeWidth = 260
+  const [selectedViewerFile, setSelectedViewerFile] = useState<SelectedFile | null>(null)
+  const [rightPanelTab, setRightPanelTab] = useState<'file' | 'research'>('research')
+
   const [researchSplitOpen, setResearchSplitOpen] = useState(false)
   const [splitWidth, setSplitWidth] = useState<number>(() => {
     try {
@@ -253,6 +273,22 @@ export default function ChatPage() {
     return 550
   })
   const [isDraggingSplit, setIsDraggingSplit] = useState(false)
+
+  const toggleFolderTree = useCallback(() => {
+    setFolderTreeOpen((prev) => {
+      const next = !prev
+      try {
+        localStorage.setItem('antares:chat-folder-tree-open', String(next))
+      } catch {}
+      return next
+    })
+  }, [])
+
+  const handleSelectFileFromTree = useCallback((f: SelectedFile) => {
+    setSelectedViewerFile(f)
+    setRightPanelTab('file')
+    setResearchSplitOpen(true)
+  }, [])
 
   // Drag-to-resize listener for the Research / Split View panel
   useEffect(() => {
@@ -1385,6 +1421,22 @@ export default function ChatPage() {
 
   return (
     <div className="flex h-[calc(100dvh-8rem)] overflow-hidden lg:h-[calc(100dvh-4rem)]">
+      {/* Left Collapsible Folder Tree */}
+      {folderTreeOpen ? (
+        <div
+          style={{ width: `${folderTreeWidth}px` }}
+          className="hidden shrink-0 lg:block transition-[width] duration-150"
+        >
+          <ChatFolderTree
+            projectDir={projectDir}
+            activeFilePath={selectedViewerFile?.path}
+            onSelectFile={handleSelectFileFromTree}
+            onClose={() => toggleFolderTree()}
+            refreshKey={sidebarRefresh}
+          />
+        </div>
+      ) : null}
+
       <div className="relative flex min-w-0 flex-1 flex-col overflow-x-hidden">
       {analyzeDialog}
       <EditMessageDialog
@@ -1415,6 +1467,17 @@ export default function ChatPage() {
         <Button variant="outline" size="sm" onClick={newChat} className="gap-1.5">
           <Plus className="size-4" />
           <span className="hidden sm:inline">{t('common.new')}</span>
+        </Button>
+        <Button
+          variant={folderTreeOpen ? 'default' : 'outline'}
+          size="sm"
+          onClick={toggleFolderTree}
+          className="gap-1.5"
+          title={t('chat.folderTreeToggle')}
+          aria-label={t('chat.folderTreeToggle')}
+        >
+          <FolderOpen className="size-4" />
+          <span className="hidden md:inline">{t('chat.folderTree')}</span>
         </Button>
         <Button
           variant={researchSplitOpen ? 'default' : 'outline'}
@@ -1592,18 +1655,70 @@ export default function ChatPage() {
           <div
             style={{ width: `${splitWidth}px` }}
             className={cn(
-              'hidden shrink-0 md:block',
+              'hidden shrink-0 md:flex md:flex-col overflow-hidden',
               isDraggingSplit && 'select-none pointer-events-none',
             )}
           >
-            <Suspense fallback={<div className="flex h-full w-full items-center justify-center bg-card text-muted-foreground"><p className="text-xs">Memuat panel...</p></div>}>
-              <ResearchPanel
-                sessionId={sessionId}
-                refreshKey={sidebarRefresh}
-                onClose={handleCloseResearchSplit}
-                onInsertToChat={handleInsertDraftToChat}
-              />
-            </Suspense>
+            {/* Split Header Tabs when file is opened */}
+            {selectedViewerFile ? (
+              <div className="flex items-center gap-1 border-b border-border bg-background/80 px-3 py-1.5 text-xs shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setRightPanelTab('file')}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] px-2.5 py-1 text-xs font-medium transition-colors',
+                    rightPanelTab === 'file'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:bg-raised hover:text-foreground',
+                  )}
+                >
+                  {getFileIcon(detectFileKind(selectedViewerFile.name), 'size-3.5 shrink-0')}
+                  <span className="truncate max-w-[140px]">{selectedViewerFile.name}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setRightPanelTab('research')}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] px-2.5 py-1 text-xs font-medium transition-colors',
+                    rightPanelTab === 'research'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:bg-raised hover:text-foreground',
+                  )}
+                >
+                  <BookOpen className="size-3.5 shrink-0" />
+                  <span>{t('chat.researchDocs')}</span>
+                </button>
+              </div>
+            ) : null}
+
+            <div className="flex-1 overflow-hidden">
+              {rightPanelTab === 'file' && selectedViewerFile ? (
+                <FileViewerPanel
+                  file={selectedViewerFile}
+                  baseDir={projectDir}
+                  onClose={() => {
+                    setSelectedViewerFile(null)
+                    setRightPanelTab('research')
+                  }}
+                />
+              ) : (
+                <Suspense
+                  fallback={
+                    <div className="flex h-full w-full items-center justify-center bg-card text-muted-foreground">
+                      <p className="text-xs">Memuat panel...</p>
+                    </div>
+                  }
+                >
+                  <ResearchPanel
+                    sessionId={sessionId}
+                    refreshKey={sidebarRefresh}
+                    onClose={handleCloseResearchSplit}
+                    onInsertToChat={handleInsertDraftToChat}
+                  />
+                </Suspense>
+              )}
+            </div>
           </div>
         </>
       ) : null}

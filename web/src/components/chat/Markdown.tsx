@@ -33,16 +33,72 @@ export function Markdown({ content, className }: { content: string; className?: 
   )
 }
 
+export interface MarkdownListItem {
+  text: string
+  ordered: boolean
+  start?: number
+  children?: MarkdownListItem[]
+}
+
 type Block =
   | { type: 'code'; code: string; lang: string }
   | { type: 'svg'; svg: string }
   | { type: 'heading'; level: number; text: string }
-  | { type: 'list'; ordered: boolean; items: string[] }
+  | { type: 'list'; ordered: boolean; start?: number; items: MarkdownListItem[] }
   | { type: 'quote'; text: string }
   | { type: 'table'; header: string[]; rows: string[][] }
   | { type: 'rule' }
   | { type: 'image'; alt: string; url: string }
   | { type: 'paragraph'; text: string }
+
+export function buildListTree(
+  rawItems: { indent: number; ordered: boolean; start?: number; text: string }[],
+): MarkdownListItem[] {
+  if (rawItems.length === 0) return []
+
+  const root: MarkdownListItem[] = []
+  const stack: { item: MarkdownListItem; indent: number }[] = []
+
+  for (const raw of rawItems) {
+    const newItem: MarkdownListItem = {
+      text: raw.text,
+      ordered: raw.ordered,
+      start: raw.start,
+    }
+
+    if (stack.length === 0) {
+      root.push(newItem)
+      stack.push({ item: newItem, indent: raw.indent })
+      continue
+    }
+
+    if (raw.indent > stack[stack.length - 1].indent) {
+      const parent = stack[stack.length - 1].item
+      if (!parent.children) {
+        parent.children = []
+      }
+      parent.children.push(newItem)
+      stack.push({ item: newItem, indent: raw.indent })
+    } else {
+      while (stack.length > 0 && raw.indent <= stack[stack.length - 1].indent) {
+        stack.pop()
+      }
+
+      if (stack.length === 0) {
+        root.push(newItem)
+      } else {
+        const parent = stack[stack.length - 1].item
+        if (!parent.children) {
+          parent.children = []
+        }
+        parent.children.push(newItem)
+      }
+      stack.push({ item: newItem, indent: raw.indent })
+    }
+  }
+
+  return root
+}
 
 function parseBlocks(src: string): Block[] {
   const lines = src.replace(/\r\n/g, '\n').split('\n')
@@ -136,15 +192,54 @@ function parseBlocks(src: string): Block[] {
 
     const bullet = /^\s*([-*+]|\d+[.)])\s+/.exec(line)
     if (bullet) {
-      const ordered = /\d/.test(bullet[1])
-      const items: string[] = []
+      const rawItems: { indent: number; ordered: boolean; start?: number; text: string }[] = []
       while (i < lines.length) {
-        const m = /^\s*([-*+]|\d+[.)])\s+(.*)$/.exec(lines[i])
-        if (!m) break
-        items.push(m[2])
-        i++
+        const curLine = lines[i]
+        if (!curLine.trim()) {
+          // Check if next non-empty line continues list with indentation
+          let lookahead = i + 1
+          let hasIndentedNext = false
+          while (lookahead < lines.length && !lines[lookahead].trim()) {
+            lookahead++
+          }
+          if (lookahead < lines.length) {
+            const nextMatch = /^(\s+)([-*+]|\d+[.)])\s+(.*)$/.exec(lines[lookahead])
+            if (nextMatch && nextMatch[1].replace(/\t/g, '  ').length >= 2) {
+              hasIndentedNext = true
+            }
+          }
+          if (hasIndentedNext) {
+            i++
+            continue
+          }
+          break
+        }
+
+        const m = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/.exec(curLine)
+        if (m) {
+          const indent = m[1].replace(/\t/g, '  ').length
+          const isNum = /\d/.test(m[2])
+          const startNum = isNum ? parseInt(m[2], 10) : undefined
+          rawItems.push({
+            indent,
+            ordered: isNum,
+            start: startNum,
+            text: m[3],
+          })
+          i++
+        } else if (rawItems.length > 0 && (/^\s{2,}|\t+/.test(curLine) || rawItems[rawItems.length - 1].indent > 0)) {
+          // Continuation line for the previous list item
+          rawItems[rawItems.length - 1].text += ' ' + curLine.trim()
+          i++
+        } else {
+          break
+        }
       }
-      blocks.push({ type: 'list', ordered, items })
+
+      const items = buildListTree(rawItems)
+      const ordered = items.length > 0 ? items[0].ordered : false
+      const start = items.length > 0 ? items[0].start : undefined
+      blocks.push({ type: 'list', ordered, start, items })
       continue
     }
 
@@ -227,22 +322,12 @@ function RichBlock({ block }: { block: Block }) {
       )
     }
     case 'list':
-      return block.ordered ? (
-        <ol className="list-decimal space-y-1 pl-5">
-          {block.items.map((it, i) => (
-            <li key={i}>
-              <Inline text={it} />
-            </li>
-          ))}
-        </ol>
-      ) : (
-        <ul className="list-disc space-y-1 pl-5">
-          {block.items.map((it, i) => (
-            <li key={i}>
-              <Inline text={it} />
-            </li>
-          ))}
-        </ul>
+      return (
+        <RenderList
+          items={block.items}
+          ordered={block.ordered}
+          start={block.start}
+        />
       )
     case 'svg':
       return (
@@ -306,6 +391,51 @@ function RichBlock({ block }: { block: Block }) {
     default:
       return null
   }
+}
+
+function RenderListItem({ item }: { item: MarkdownListItem }) {
+  return (
+    <li className="leading-relaxed">
+      <Inline text={item.text} />
+      {item.children && item.children.length > 0 ? (
+        <RenderList
+          items={item.children}
+          ordered={item.children[0].ordered}
+          start={item.children[0].start}
+        />
+      ) : null}
+    </li>
+  )
+}
+
+function RenderList({
+  items,
+  ordered,
+  start,
+}: {
+  items: MarkdownListItem[]
+  ordered: boolean
+  start?: number
+}) {
+  if (ordered) {
+    return (
+      <ol
+        className="list-decimal space-y-1.5 pl-6 my-1.5"
+        {...(start && start !== 1 ? { start } : {})}
+      >
+        {items.map((it, idx) => (
+          <RenderListItem key={idx} item={it} />
+        ))}
+      </ol>
+    )
+  }
+  return (
+    <ul className="list-disc space-y-1.5 pl-6 my-1.5">
+      {items.map((it, idx) => (
+        <RenderListItem key={idx} item={it} />
+      ))}
+    </ul>
+  )
 }
 
 const ARROW_PATTERN =

@@ -44,6 +44,7 @@ import { useI18n } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 import { LatexPreview } from '@/components/chat/LatexPreview'
 import { AcademicDraft } from '@/components/chat/AcademicDraft'
+import { buildListTree, type MarkdownListItem } from './Markdown'
 
 interface ResearchPanelProps {
   refreshKey?: number
@@ -426,16 +427,25 @@ export async function convertMarkdownToAcademicHtml(draftTitle: string, draftCon
     tableRows = []
   }
 
-  let inList = false
-  let listIsOrdered = false
-  let listItemsHtml = ''
+  const renderListToAcademicHtml = (items: MarkdownListItem[], isOrdered: boolean, level = 0): string => {
+    const tag = isOrdered ? 'ol' : 'ul'
+    const padLeft = level === 0 ? '1cm' : '0.8cm'
+    let html = `<${tag} style="margin-top: 3pt; margin-bottom: 3pt; padding-left: ${padLeft}; font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.15;">\n`
 
-  const flushList = () => {
-    if (!inList) return
-    const listTag = listIsOrdered ? 'ol' : 'ul'
-    bodyHtml += `<${listTag} style="margin-top: 4pt; margin-bottom: 6pt; padding-left: 1cm; font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.15;">\n${listItemsHtml}</${listTag}>\n`
-    inList = false
-    listItemsHtml = ''
+    for (const item of items) {
+      const formatted = item.text
+        .replace(/\*\*([\s\S]*?)\*\*/g, '<b style="font-weight: 700; font-family: \'Times New Roman\', Times, serif;">$1</b>')
+        .replace(/\*([\s\S]*?)\*/g, '<i style="font-family: \'Times New Roman\', Times, serif;">$1</i>')
+
+      html += `  <li style="margin-top: 2pt; margin-bottom: 2pt; line-height: 1.15;"><span style="font-family: 'Times New Roman', Times, serif;">${formatted}</span>`
+      if (item.children && item.children.length > 0) {
+        html += '\n' + renderListToAcademicHtml(item.children, item.children[0].ordered, level + 1)
+      }
+      html += '</li>\n'
+    }
+
+    html += `</${tag}>\n`
+    return html
   }
 
   for (let i = 0; i < lines.length; i++) {
@@ -443,12 +453,10 @@ export async function convertMarkdownToAcademicHtml(draftTitle: string, draftCon
     const line = rawLine.trim()
     if (!line) {
       if (inTable) flushTable()
-      if (inList) flushList()
       continue
     }
 
     if (line.includes('|') && i + 1 < lines.length && /^\s*\|?[\s:|-]+\|[\s:|-]*$/.test(lines[i + 1])) {
-      if (inList) flushList()
       inTable = true
       const parseRow = (l: string) => l.replace(/^\s*\|/, '').replace(/\|\s*$/, '').split('|')
       tableRows.push(parseRow(line))
@@ -464,29 +472,55 @@ export async function convertMarkdownToAcademicHtml(draftTitle: string, draftCon
     const listMatch = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/.exec(rawLine)
     if (listMatch) {
       if (inTable) flushTable()
-      const indentSpaces = listMatch[1].replace(/\t/g, '  ').length
-      const level = Math.floor(indentSpaces / 2)
-      const isOrdered = /\d/.test(listMatch[2])
+      const rawItems: { indent: number; ordered: boolean; start?: number; text: string }[] = []
+      while (i < lines.length) {
+        const curLine = lines[i]
+        if (!curLine.trim()) {
+          let lookahead = i + 1
+          let hasIndentedNext = false
+          while (lookahead < lines.length && !lines[lookahead].trim()) {
+            lookahead++
+          }
+          if (lookahead < lines.length) {
+            const nextMatch = /^(\s+)([-*+]|\d+[.)])\s+(.*)$/.exec(lines[lookahead])
+            if (nextMatch && nextMatch[1].replace(/\t/g, '  ').length >= 2) {
+              hasIndentedNext = true
+            }
+          }
+          if (hasIndentedNext) {
+            i++
+            continue
+          }
+          break
+        }
 
-      if (!inList) {
-        inList = true
-        listIsOrdered = isOrdered
-      } else if (listIsOrdered !== isOrdered && level === 0) {
-        flushList()
-        inList = true
-        listIsOrdered = isOrdered
+        const m = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/.exec(curLine)
+        if (m) {
+          const indent = m[1].replace(/\t/g, '  ').length
+          const isNum = /\d/.test(m[2])
+          const startNum = isNum ? parseInt(m[2], 10) : undefined
+          rawItems.push({
+            indent,
+            ordered: isNum,
+            start: startNum,
+            text: m[3],
+          })
+          i++
+        } else if (rawItems.length > 0 && (/^\s{2,}|\t+/.test(curLine) || rawItems[rawItems.length - 1].indent > 0)) {
+          rawItems[rawItems.length - 1].text += ' ' + curLine.trim()
+          i++
+        } else {
+          break
+        }
       }
+      i-- // compensate for loop increment
 
-      const content = listMatch[3]
-        .replace(/\*\*([\s\S]*?)\*\*/g, '<b style="font-weight: 700; font-family: \'Times New Roman\', Times, serif;">$1</b>')
-        .replace(/\*([\s\S]*?)\*/g, '<i style="font-family: \'Times New Roman\', Times, serif;">$1</i>')
-
-      const marginL = level > 0 ? ` style="margin-left: ${level * 0.7}cm;"` : ''
-      listItemsHtml += `  <li${marginL} style="margin-top: 2pt; margin-bottom: 2pt; line-height: 1.15;"><span style="font-family: 'Times New Roman', Times, serif;">${content}</span></li>\n`
+      const items = buildListTree(rawItems)
+      if (items.length > 0) {
+        bodyHtml += renderListToAcademicHtml(items, items[0].ordered)
+      }
       continue
     }
-
-    if (inList) flushList()
 
     if (line.startsWith('# ')) {
       bodyHtml += `<h1 style="font-family: 'Times New Roman', Times, serif; font-size: 12pt; font-weight: bold; text-align: center; text-transform: uppercase; margin-top: 14pt; margin-bottom: 6pt; line-height: 1.15;"><b style="font-weight: 700; font-family: 'Times New Roman', Times, serif;">${line.slice(2).trim()}</b></h1>\n`
@@ -519,7 +553,6 @@ export async function convertMarkdownToAcademicHtml(draftTitle: string, draftCon
   }
 
   if (inTable) flushTable()
-  if (inList) flushList()
 
   return `<!DOCTYPE html>
 <html>

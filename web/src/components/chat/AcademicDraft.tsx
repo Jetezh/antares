@@ -1,17 +1,21 @@
 import DOMPurify from 'dompurify'
 import { memo, useMemo } from 'react'
+import { buildListTree, type MarkdownListItem } from './Markdown'
 
 interface AcademicDraftProps {
   content: string
 }
 
 interface Block {
-  type: 'heading' | 'paragraph' | 'table' | 'svg' | 'raw'
+  type: 'heading' | 'paragraph' | 'table' | 'svg' | 'raw' | 'list'
   level?: number
   text?: string
   header?: string[]
   rows?: string[][]
   svg?: string
+  ordered?: boolean
+  start?: number
+  items?: MarkdownListItem[]
 }
 
 function parseAcademicBlocks(src: string): Block[] {
@@ -83,12 +87,64 @@ function parseAcademicBlocks(src: string): Block[] {
       continue
     }
 
+    // Lists
+    const bullet = /^\s*([-*+]|\d+[.)])\s+/.exec(line)
+    if (bullet) {
+      const rawItems: { indent: number; ordered: boolean; start?: number; text: string }[] = []
+      while (i < lines.length) {
+        const curLine = lines[i]
+        if (!curLine.trim()) {
+          let lookahead = i + 1
+          let hasIndentedNext = false
+          while (lookahead < lines.length && !lines[lookahead].trim()) {
+            lookahead++
+          }
+          if (lookahead < lines.length) {
+            const nextMatch = /^(\s+)([-*+]|\d+[.)])\s+(.*)$/.exec(lines[lookahead])
+            if (nextMatch && nextMatch[1].replace(/\t/g, '  ').length >= 2) {
+              hasIndentedNext = true
+            }
+          }
+          if (hasIndentedNext) {
+            i++
+            continue
+          }
+          break
+        }
+
+        const m = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/.exec(curLine)
+        if (m) {
+          const indent = m[1].replace(/\t/g, '  ').length
+          const isNum = /\d/.test(m[2])
+          const startNum = isNum ? parseInt(m[2], 10) : undefined
+          rawItems.push({
+            indent,
+            ordered: isNum,
+            start: startNum,
+            text: m[3],
+          })
+          i++
+        } else if (rawItems.length > 0 && (/^\s{2,}|\t+/.test(curLine) || rawItems[rawItems.length - 1].indent > 0)) {
+          rawItems[rawItems.length - 1].text += ' ' + curLine.trim()
+          i++
+        } else {
+          break
+        }
+      }
+
+      const items = buildListTree(rawItems)
+      const ordered = items.length > 0 ? items[0].ordered : false
+      const start = items.length > 0 ? items[0].start : undefined
+      blocks.push({ type: 'list', ordered, start, items })
+      continue
+    }
+
     // Regular paragraphs or captions
     const paraLines: string[] = []
     while (
       i < lines.length &&
       lines[i].trim() &&
-      !/^\s*(#{1,6}\s|<svg|\|)/.test(lines[i])
+      !/^\s*(#{1,6}\s|<svg|\||[-*+]\s|\d+[.)]\s)/.test(lines[i])
     ) {
       paraLines.push(lines[i].trim())
       i++
@@ -113,6 +169,51 @@ const safeHtml = (html: string) =>
 
 const safeSvg = (svg: string) =>
   DOMPurify.sanitize(svg, { USE_PROFILES: { svg: true, svgFilters: true }, FORBID_TAGS: ['style'] })
+
+function RenderAcademicListItem({ item }: { item: MarkdownListItem }) {
+  return (
+    <li className="my-0.5 leading-[1.15]">
+      <span dangerouslySetInnerHTML={{ __html: safeHtml(renderAcademicInline(item.text)) }} />
+      {item.children && item.children.length > 0 ? (
+        <RenderAcademicList
+          items={item.children}
+          ordered={item.children[0].ordered}
+          start={item.children[0].start}
+        />
+      ) : null}
+    </li>
+  )
+}
+
+function RenderAcademicList({
+  items,
+  ordered,
+  start,
+}: {
+  items: MarkdownListItem[]
+  ordered: boolean
+  start?: number
+}) {
+  if (ordered) {
+    return (
+      <ol
+        className="list-decimal pl-7 my-1 space-y-1 font-serif text-[12pt] leading-[1.15] text-[#111827]"
+        {...(start && start !== 1 ? { start } : {})}
+      >
+        {items.map((it, idx) => (
+          <RenderAcademicListItem key={idx} item={it} />
+        ))}
+      </ol>
+    )
+  }
+  return (
+    <ul className="list-disc pl-7 my-1 space-y-1 font-serif text-[12pt] leading-[1.15] text-[#111827]">
+      {items.map((it, idx) => (
+        <RenderAcademicListItem key={idx} item={it} />
+      ))}
+    </ul>
+  )
+}
 
 export const AcademicDraft = memo(function AcademicDraft({ content }: AcademicDraftProps) {
   const blocks = useMemo(() => parseAcademicBlocks(content), [content])
@@ -220,6 +321,18 @@ export const AcademicDraft = memo(function AcademicDraft({ content }: AcademicDr
                   ))}
                 </tbody>
               </table>
+            </div>
+          )
+        }
+
+        if (block.type === 'list' && block.items) {
+          return (
+            <div key={idx} className="my-2">
+              <RenderAcademicList
+                items={block.items}
+                ordered={block.ordered ?? false}
+                start={block.start}
+              />
             </div>
           )
         }

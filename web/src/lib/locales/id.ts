@@ -402,6 +402,10 @@ const id: Dict = {
 
   'chat.newConversation': 'Percakapan baru',
   'chat.conversation': 'Percakapan',
+  'chat.folderTree': 'Berkas & Folder',
+  'chat.folderTreeToggle': 'Buka/Tutup Pohon Berkas',
+  'chat.fileViewer': 'Tinjau Berkas',
+  'chat.researchDocs': 'Riset & Google Docs',
   'chat.session': 'Sesi',
   'chat.placeholder': 'Tanya apa saja…',
   'chat.send': 'Kirim',

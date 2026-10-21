@@ -334,16 +334,30 @@ func (s *Server) handleLogStream(w http.ResponseWriter, r *http.Request) {
 
 // ---- files ------------------------------------------------------------------
 
+func (s *Server) resolveFileRoot(r *http.Request) string {
+	cfg := s.config()
+	root := cfg.Agent.Workspace
+	if d := strings.TrimSpace(r.URL.Query().Get("dir")); d != "" {
+		expanded := filepath.Clean(config.Expand(d))
+		if filepath.IsAbs(expanded) {
+			if fi, err := os.Stat(expanded); err == nil && fi.IsDir() {
+				return expanded
+			}
+		}
+	}
+	return root
+}
+
 func (s *Server) handleListFiles(w http.ResponseWriter, r *http.Request) {
 	if s.requireDashboardPassword(w, r) {
 		return
 	}
-	cfg := s.config()
+	root := s.resolveFileRoot(r)
 	target := r.URL.Query().Get("path")
 	if target == "" {
 		target = "."
 	}
-	abs, err := safeJoin(cfg.Agent.Workspace, target)
+	abs, err := safeJoin(root, target)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err)
 		return
@@ -367,7 +381,7 @@ func (s *Server) handleListFiles(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			continue
 		}
-		rel, _ := filepath.Rel(cfg.Agent.Workspace, filepath.Join(abs, e.Name()))
+		rel, _ := filepath.Rel(root, filepath.Join(abs, e.Name()))
 		out = append(out, entry{
 			Name: e.Name(), Path: filepath.ToSlash(rel), IsDir: e.IsDir(),
 			Size: info.Size(), Modified: info.ModTime(),
@@ -381,11 +395,11 @@ func (s *Server) handleListFiles(w http.ResponseWriter, r *http.Request) {
 	})
 
 	parent := ""
-	if rel, _ := filepath.Rel(cfg.Agent.Workspace, abs); rel != "." && rel != "" {
+	if rel, _ := filepath.Rel(root, abs); rel != "." && rel != "" {
 		parent = filepath.ToSlash(filepath.Dir(rel))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"path": filepath.ToSlash(relOrSelf(cfg.Agent.Workspace, abs)), "parent": parent, "entries": out,
+		"root": root, "path": filepath.ToSlash(relOrSelf(root, abs)), "parent": parent, "entries": out,
 	})
 }
 
@@ -393,8 +407,8 @@ func (s *Server) handleReadFile(w http.ResponseWriter, r *http.Request) {
 	if s.requireDashboardPassword(w, r) {
 		return
 	}
-	cfg := s.config()
-	abs, err := safeJoin(cfg.Agent.Workspace, r.URL.Query().Get("path"))
+	root := s.resolveFileRoot(r)
+	abs, err := safeJoin(root, r.URL.Query().Get("path"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err)
 		return
@@ -447,8 +461,8 @@ func (s *Server) handleRawFile(w http.ResponseWriter, r *http.Request) {
 	if s.requireDashboardPassword(w, r) {
 		return
 	}
-	cfg := s.config()
-	abs, err := safeJoin(cfg.Agent.Workspace, r.URL.Query().Get("path"))
+	root := s.resolveFileRoot(r)
+	abs, err := safeJoin(root, r.URL.Query().Get("path"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err)
 		return
