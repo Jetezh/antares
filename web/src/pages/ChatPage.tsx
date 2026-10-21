@@ -1598,6 +1598,7 @@ export default function ChatPage() {
           >
             <Suspense fallback={<div className="flex h-full w-full items-center justify-center bg-card text-muted-foreground"><p className="text-xs">Memuat panel...</p></div>}>
               <ResearchPanel
+                sessionId={sessionId}
                 refreshKey={sidebarRefresh}
                 onClose={handleCloseResearchSplit}
                 onInsertToChat={handleInsertDraftToChat}

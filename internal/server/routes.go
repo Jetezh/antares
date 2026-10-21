@@ -136,6 +136,8 @@ func (s *Server) routes() {
 	m.HandleFunc("POST /api/research/gdocs/pull", s.handleGDocsSyncPull)
 	m.HandleFunc("GET /api/research/draft", s.handleGetDraft)
 	m.HandleFunc("POST /api/research/draft", s.handleSaveDraft)
+	m.HandleFunc("DELETE /api/research/draft", s.handleDeleteDraft)
+	m.HandleFunc("POST /api/research/draft/clear", s.handleDeleteDraft)
 	m.HandleFunc("POST /api/research/open-browser", s.handleOpenBrowser)
 
 	// Models & providers

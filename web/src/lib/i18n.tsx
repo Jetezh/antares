@@ -1328,6 +1328,11 @@ const en = {
 
   'research.modeEdit': 'Edit Mode',
   'research.modePreview': 'Preview Mode',
+  'research.deleteDraft': 'Delete Draft',
+  'research.deleteDraftTooltip': 'Delete manuscript draft for this session',
+  'research.deleteDraftConfirmTitle': 'Delete Manuscript Draft',
+  'research.deleteDraftConfirmDesc': 'Are you sure you want to delete the manuscript draft for this chat session? The draft content will be cleared.',
+  'research.deleteDraftConfirmBtn': 'Delete Draft',
   'research.dragResize': 'Drag to resize split view',
 
   'research.latex': 'LaTeX',

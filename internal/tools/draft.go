@@ -54,11 +54,18 @@ func (draftReadTool) Execute(ctx context.Context, in Input) Result {
 		return Errorf("storage service not available")
 	}
 
-	title, _ := in.Deps.Store.GetKV(ctx, "research:draft:title")
-	if title == "" {
+	titleKey := "research:draft:title"
+	contentKey := "research:draft:content"
+	if in.SessionID != "" {
+		titleKey = "research:draft:" + in.SessionID + ":title"
+		contentKey = "research:draft:" + in.SessionID + ":content"
+	}
+
+	title, _ := in.Deps.Store.GetKV(ctx, titleKey)
+	if title == "" && in.SessionID == "" {
 		title = "Bab 3 - Perancangan Sistem Bilik"
 	}
-	content, _ := in.Deps.Store.GetKV(ctx, "research:draft:content")
+	content, _ := in.Deps.Store.GetKV(ctx, contentKey)
 
 	return Result{
 		Content: fmt.Sprintf("Active Draft Title: %s\n\n```markdown\n%s\n```", title, content),
@@ -108,21 +115,28 @@ func (draftUpdateTool) Execute(ctx context.Context, in Input) Result {
 		mode = "replace"
 	}
 
+	titleKey := "research:draft:title"
+	contentKey := "research:draft:content"
+	if in.SessionID != "" {
+		titleKey = "research:draft:" + in.SessionID + ":title"
+		contentKey = "research:draft:" + in.SessionID + ":content"
+	}
+
 	finalContent := sanitizeDraftContent(args.Content)
 	if mode == "append" {
-		existing, _ := in.Deps.Store.GetKV(ctx, "research:draft:content")
+		existing, _ := in.Deps.Store.GetKV(ctx, contentKey)
 		if existing != "" {
 			finalContent = strings.TrimRight(existing, "\n") + "\n\n" + strings.TrimLeft(finalContent, "\n")
 		}
 	}
 
-	_ = in.Deps.Store.SetKV(ctx, "research:draft:content", finalContent)
+	_ = in.Deps.Store.SetKV(ctx, contentKey, finalContent)
 
 	title := strings.TrimSpace(args.Title)
 	if title != "" {
-		_ = in.Deps.Store.SetKV(ctx, "research:draft:title", title)
+		_ = in.Deps.Store.SetKV(ctx, titleKey, title)
 	} else {
-		title, _ = in.Deps.Store.GetKV(ctx, "research:draft:title")
+		title, _ = in.Deps.Store.GetKV(ctx, titleKey)
 	}
 
 	var sb strings.Builder

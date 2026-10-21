@@ -22,11 +22,13 @@ import {
   MagnifyingGlass,
   PencilSimple,
   Spinner,
+  TrashSimple,
   WarningCircle,
   X,
 } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input, Label, Switch } from '@/components/ui/primitives'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import {
   Dialog,
   DialogBody,
@@ -36,7 +38,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { get, post } from '@/lib/api'
+import { del, get, post } from '@/lib/api'
 import { copyText } from '@/lib/clipboard'
 import { useI18n } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
@@ -47,6 +49,7 @@ interface ResearchPanelProps {
   refreshKey?: number
   onClose: () => void
   onInsertToChat?: (text: string) => void
+  sessionId?: string
 }
 
 interface ResearchSettings {
@@ -546,6 +549,7 @@ export const ResearchPanel = memo(function ResearchPanel({
   refreshKey,
   onClose,
   onInsertToChat,
+  sessionId,
 }: ResearchPanelProps) {
   const { t } = useI18n()
   const [tab, setTab] = useState<'draft' | 'gdocs' | 'latex' | 'zotero'>('draft')
@@ -555,19 +559,23 @@ export const ResearchPanel = memo(function ResearchPanel({
   // Draft state (HTML / Markdown artifact)
   const [draftTitle, setDraftTitle] = useState(() => {
     try {
-      return localStorage.getItem('antares:draft-title') || 'Bab 3 - Perancangan Sistem Bilik'
+      const key = sessionId ? `antares:draft-title:${sessionId}` : 'antares:draft-title'
+      return localStorage.getItem(key) || (sessionId ? '' : 'Bab 3 - Perancangan Sistem Bilik')
     } catch {
-      return 'Bab 3 - Perancangan Sistem Bilik'
+      return sessionId ? '' : 'Bab 3 - Perancangan Sistem Bilik'
     }
   })
   const [draftContent, setDraftContent] = useState(() => {
     try {
-      return localStorage.getItem('antares:draft-md') || DEFAULT_DRAFT_MD
+      const key = sessionId ? `antares:draft-md:${sessionId}` : 'antares:draft-md'
+      return localStorage.getItem(key) || (sessionId ? '' : DEFAULT_DRAFT_MD)
     } catch {
-      return DEFAULT_DRAFT_MD
+      return sessionId ? '' : DEFAULT_DRAFT_MD
     }
   })
   const [draftViewMode, setDraftViewMode] = useState<'edit' | 'preview'>('preview')
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+  const [deletingDraft, setDeletingDraft] = useState(false)
   const [exportingGdocs, setExportingGdocs] = useState(false)
   const [exportedDocUrl, setExportedDocUrl] = useState('')
   const [exportError, setExportError] = useState('')
@@ -627,10 +635,41 @@ export const ResearchPanel = memo(function ResearchPanel({
 
   const handleDraftChange = (val: string) => {
     setDraftContent(val)
+    const localKey = sessionId ? `antares:draft-md:${sessionId}` : 'antares:draft-md'
     try {
-      localStorage.setItem('antares:draft-md', val)
-      post('/research/draft', { title: draftTitle, content: val }).catch(() => {})
+      localStorage.setItem(localKey, val)
+      post('/research/draft', { title: draftTitle, content: val, session_id: sessionId }).catch(() => {})
     } catch {}
+  }
+
+  const handleTitleChange = (val: string) => {
+    setDraftTitle(val)
+    const localKey = sessionId ? `antares:draft-title:${sessionId}` : 'antares:draft-title'
+    try {
+      localStorage.setItem(localKey, val)
+      post('/research/draft', { title: val, content: draftContent, session_id: sessionId }).catch(() => {})
+    } catch {}
+  }
+
+  const handleDeleteDraft = async () => {
+    setDeletingDraft(true)
+    try {
+      const q = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : ''
+      await del(`/research/draft${q}`)
+      setDraftContent('')
+      setDraftTitle('')
+      const localKeyContent = sessionId ? `antares:draft-md:${sessionId}` : 'antares:draft-md'
+      const localKeyTitle = sessionId ? `antares:draft-title:${sessionId}` : 'antares:draft-title'
+      try {
+        localStorage.removeItem(localKeyContent)
+        localStorage.removeItem(localKeyTitle)
+      } catch {}
+      setConfirmDeleteOpen(false)
+    } catch {
+      // ignore
+    } finally {
+      setDeletingDraft(false)
+    }
   }
 
   const handleExportToGoogleDocs = async () => {
@@ -642,6 +681,7 @@ export const ResearchPanel = memo(function ResearchPanel({
       const res = await post<{ status: string; document_url: string; document_id: string }>(
         '/research/gdocs/export',
         {
+          session_id: sessionId,
           title: draftTitle,
           html: fullHtml,
           auto_share: autoShareWithLink,
@@ -653,6 +693,10 @@ export const ResearchPanel = memo(function ResearchPanel({
         setDocUrl(res.document_url)
         setPreviewActive(true)
         setExportModalOpen(false)
+        const localGdocsKey = sessionId ? `antares:gdocs-active-url:${sessionId}` : 'antares:gdocs-active-url'
+        try {
+          localStorage.setItem(localGdocsKey, res.document_url)
+        } catch {}
         // Automatically switch to Google Docs tab to view the document live
         setTab('gdocs')
       }
@@ -673,6 +717,7 @@ export const ResearchPanel = memo(function ResearchPanel({
       const res = await post<{ status: string; document_url: string }>(
         '/research/gdocs/sync',
         {
+          session_id: sessionId,
           document_url: docUrl,
           html: fullHtml,
         },
@@ -696,12 +741,13 @@ export const ResearchPanel = memo(function ResearchPanel({
     try {
       const res = await post<{ status: string; content: string }>(
         '/research/gdocs/pull',
-        { document_url: docUrl },
+        { session_id: sessionId, document_url: docUrl },
       )
       if (res.content) {
         setDraftContent(res.content)
+        const localKey = sessionId ? `antares:draft-md:${sessionId}` : 'antares:draft-md'
         try {
-          localStorage.setItem('antares:draft-md', res.content)
+          localStorage.setItem(localKey, res.content)
         } catch {}
         setSyncPullSuccess(true)
         setTimeout(() => setSyncPullSuccess(false), 3000)
@@ -859,9 +905,10 @@ export const ResearchPanel = memo(function ResearchPanel({
   const [codeCopied, setCodeCopied] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
 
-  // Load settings on mount
+  // Load settings on mount or session change
   useEffect(() => {
-    get<ResearchSettings>('/research/settings')
+    const q = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : ''
+    get<ResearchSettings>(`/research/settings${q}`)
       .then((data) => {
         if (data.zotero) {
           setZoteroUserId(data.zotero.user_id || '')
@@ -872,27 +919,28 @@ export const ResearchPanel = memo(function ResearchPanel({
           setGdocsWebhookUrl(data.gdocs.webhook_url || '')
           setGdocsClientId(data.gdocs.oauth_client_id || '')
           setGdocsClientSecret(data.gdocs.oauth_client_secret || '')
-          if (data.gdocs.document_url && !docUrl) {
-            setDocUrl(data.gdocs.document_url)
-            setPreviewActive(true)
-            try {
-              localStorage.setItem('antares:gdocs-active-url', data.gdocs.document_url)
-            } catch {
-              /* ignore */
-            }
-          }
+          const doc = data.gdocs.document_url || ''
+          setDocUrl(doc)
+          setPreviewActive(Boolean(doc))
+          const localGdocsKey = sessionId ? `antares:gdocs-active-url:${sessionId}` : 'antares:gdocs-active-url'
+          try {
+            if (doc) localStorage.setItem(localGdocsKey, doc)
+            else localStorage.removeItem(localGdocsKey)
+          } catch {}
         }
       })
       .catch(() => {})
-  }, [])
+  }, [sessionId])
 
   const handleLoadDoc = (urlVal?: string) => {
     const val = (urlVal !== undefined ? urlVal : docUrl).trim()
     if (!val) return
     setPreviewActive(true)
+    const localGdocsKey = sessionId ? `antares:gdocs-active-url:${sessionId}` : 'antares:gdocs-active-url'
     try {
-      localStorage.setItem('antares:gdocs-active-url', val)
+      localStorage.setItem(localGdocsKey, val)
       post('/research/settings', {
+        session_id: sessionId,
         gdocs: {
           document_url: val,
         },
@@ -905,9 +953,11 @@ export const ResearchPanel = memo(function ResearchPanel({
   const handleClearDoc = async () => {
     setDocUrl('')
     setPreviewActive(false)
+    const localGdocsKey = sessionId ? `antares:gdocs-active-url:${sessionId}` : 'antares:gdocs-active-url'
     try {
-      localStorage.removeItem('antares:gdocs-active-url')
+      localStorage.removeItem(localGdocsKey)
       await post('/research/settings', {
+        session_id: sessionId,
         gdocs: {
           document_url: '',
           document_id: '',
@@ -918,31 +968,31 @@ export const ResearchPanel = memo(function ResearchPanel({
     }
   }
 
-  // Sync live draft from backend on mount and turn completions
+  // Sync live draft from backend on mount, turn completions, or session change
   useEffect(() => {
-    get<{ title: string; content: string }>('/research/draft')
+    const q = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : ''
+    get<{ title: string; content: string }>(`/research/draft${q}`)
       .then((res) => {
-        if (res.content) {
-          setDraftContent(res.content)
-          try {
-            localStorage.setItem('antares:draft-md', res.content)
-          } catch {}
-        }
-        if (res.title) {
-          setDraftTitle(res.title)
-          try {
-            localStorage.setItem('antares:draft-title', res.title)
-          } catch {}
-        }
+        setDraftContent(res.content || '')
+        setDraftTitle(res.title || '')
+        const localKeyContent = sessionId ? `antares:draft-md:${sessionId}` : 'antares:draft-md'
+        const localKeyTitle = sessionId ? `antares:draft-title:${sessionId}` : 'antares:draft-title'
+        try {
+          if (res.content) localStorage.setItem(localKeyContent, res.content)
+          else localStorage.removeItem(localKeyContent)
+          if (res.title) localStorage.setItem(localKeyTitle, res.title)
+          else localStorage.removeItem(localKeyTitle)
+        } catch {}
       })
       .catch(() => {})
-  }, [refreshKey])
+  }, [refreshKey, sessionId])
 
   const handleSaveSettings = async (closeModal = true) => {
     setSavingSettings(true)
     setSaveSuccess(false)
     try {
       await post('/research/settings', {
+        session_id: sessionId,
         zotero: {
           user_id: zoteroUserId,
           api_key: zoteroApiKey,
@@ -1072,12 +1122,7 @@ export const ResearchPanel = memo(function ResearchPanel({
                 type="text"
                 placeholder={t('research.draftTitlePlaceholder')}
                 value={draftTitle}
-                onChange={(e) => {
-                  setDraftTitle(e.target.value)
-                  try {
-                    localStorage.setItem('antares:draft-title', e.target.value)
-                  } catch {}
-                }}
+                onChange={(e) => handleTitleChange(e.target.value)}
                 className="h-8 flex-1 text-xs font-medium"
               />
             </div>
@@ -1199,6 +1244,18 @@ export const ResearchPanel = memo(function ResearchPanel({
                 aria-label={t('research.searchDraftTitle')}
               >
                 <MagnifyingGlass className="size-3.5" />
+              </Button>
+
+              <Button
+                size="icon-sm"
+                variant="outline"
+                className="h-8 w-8 text-muted-foreground hover:text-destructive hover:border-destructive/40 shrink-0"
+                onClick={() => setConfirmDeleteOpen(true)}
+                disabled={!draftContent && !draftTitle}
+                title={t('research.deleteDraftTooltip')}
+                aria-label={t('research.deleteDraft')}
+              >
+                <TrashSimple className="size-3.5" />
               </Button>
             </div>
           </div>
@@ -2303,6 +2360,18 @@ export const ResearchPanel = memo(function ResearchPanel({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Confirm Delete Draft Dialog */}
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        onOpenChange={setConfirmDeleteOpen}
+        title={t('research.deleteDraftConfirmTitle')}
+        description={t('research.deleteDraftConfirmDesc')}
+        confirmLabel={t('research.deleteDraftConfirmBtn')}
+        destructive={true}
+        loading={deletingDraft}
+        onConfirm={handleDeleteDraft}
+      />
     </div>
   )
 })

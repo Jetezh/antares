@@ -32,6 +32,7 @@ func extractGoogleDocID(raw string) string {
 }
 
 func (s *Server) handleGetResearchSettings(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	cfg := s.config()
 	apiKey := cfg.Research.Zotero.APIKey
 	if apiKey != "" {
@@ -41,6 +42,14 @@ func (s *Server) handleGetResearchSettings(w http.ResponseWriter, r *http.Reques
 	if oauthSecret != "" {
 		oauthSecret = config.MaskSecret(oauthSecret)
 	}
+	docURL := cfg.Research.GDocs.DocumentURL
+	docID := cfg.Research.GDocs.DocumentID
+	if sessionID := strings.TrimSpace(r.URL.Query().Get("session_id")); sessionID != "" {
+		if sDocURL, _ := s.db.GetKV(ctx, "research:gdocs:"+sessionID+":doc_url"); sDocURL != "" {
+			docURL = sDocURL
+			docID, _ = s.db.GetKV(ctx, "research:gdocs:"+sessionID+":doc_id")
+		}
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"zotero": map[string]any{
 			"user_id": cfg.Research.Zotero.UserID,
@@ -49,8 +58,8 @@ func (s *Server) handleGetResearchSettings(w http.ResponseWriter, r *http.Reques
 		"gdocs": map[string]any{
 			"method":              cfg.Research.GDocs.Method,
 			"webhook_url":         cfg.Research.GDocs.WebhookURL,
-			"document_url":        cfg.Research.GDocs.DocumentURL,
-			"document_id":         cfg.Research.GDocs.DocumentID,
+			"document_url":        docURL,
+			"document_id":         docID,
 			"oauth_client_id":     cfg.Research.GDocs.OAuthClientID,
 			"oauth_client_secret": oauthSecret,
 		},
@@ -61,8 +70,10 @@ func (s *Server) handleSaveResearchSettings(w http.ResponseWriter, r *http.Reque
 	if s.requireDashboardPassword(w, r) {
 		return
 	}
+	ctx := r.Context()
 	var body struct {
-		Zotero struct {
+		SessionID string `json:"session_id"`
+		Zotero    struct {
 			UserID *string `json:"user_id"`
 			APIKey *string `json:"api_key"`
 		} `json:"zotero"`
@@ -141,13 +152,21 @@ func (s *Server) handleSaveResearchSettings(w http.ResponseWriter, r *http.Reque
 	if body.GDocs.WebhookURL != nil {
 		cfg.Research.GDocs.WebhookURL = *body.GDocs.WebhookURL
 	}
+	sessionID := strings.TrimSpace(body.SessionID)
 	if body.GDocs.DocumentURL != nil {
-		cfg.Research.GDocs.DocumentURL = *body.GDocs.DocumentURL
-		if *body.GDocs.DocumentURL != "" {
-			cfg.Research.GDocs.DocumentID = extractGoogleDocID(*body.GDocs.DocumentURL)
-		} else {
-			cfg.Research.GDocs.DocumentID = ""
-			_ = s.db.SetKV(r.Context(), "research:gdocs:last_exported_url", "")
+		docURL := strings.TrimSpace(*body.GDocs.DocumentURL)
+		docID := ""
+		if docURL != "" {
+			docID = extractGoogleDocID(docURL)
+		}
+		if sessionID != "" {
+			_ = s.db.SetKV(ctx, "research:gdocs:"+sessionID+":doc_url", docURL)
+			_ = s.db.SetKV(ctx, "research:gdocs:"+sessionID+":doc_id", docID)
+		}
+		cfg.Research.GDocs.DocumentURL = docURL
+		cfg.Research.GDocs.DocumentID = docID
+		if docURL == "" {
+			_ = s.db.SetKV(ctx, "research:gdocs:last_exported_url", "")
 		}
 	}
 	if body.GDocs.OAuthClientID != nil {
@@ -231,10 +250,11 @@ func (s *Server) handleGDocsExport(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 	var body struct {
-		Title      string `json:"title"`
-		HTML       string `json:"html"`
-		AutoShare  *bool  `json:"auto_share"`  // default true: anyone with link can edit
-		ShareRole  string `json:"share_role"`  // writer (edit) or reader (view)
+		SessionID string `json:"session_id"`
+		Title     string `json:"title"`
+		HTML      string `json:"html"`
+		AutoShare *bool  `json:"auto_share"` // default true: anyone with link can edit
+		ShareRole string `json:"share_role"` // writer (edit) or reader (view)
 	}
 	if err := decodeBody(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, err)
@@ -349,7 +369,14 @@ func (s *Server) handleGDocsExport(w http.ResponseWriter, r *http.Request) {
 
 	docURL := fmt.Sprintf("https://docs.google.com/document/d/%s/edit", driveResp.ID)
 
-	// Automatically update research.gdocs.document_url and document_id in config
+	sessionID := strings.TrimSpace(body.SessionID)
+	if sessionID != "" {
+		_ = s.db.SetKV(ctx, "research:gdocs:"+sessionID+":doc_url", docURL)
+		_ = s.db.SetKV(ctx, "research:gdocs:"+sessionID+":doc_id", driveResp.ID)
+		_ = s.db.SetKV(ctx, "research:gdocs:"+sessionID+":doc_title", title)
+	}
+
+	// Update research.gdocs.document_url and document_id in config
 	cfg, err := config.Reload()
 	if err == nil {
 		cfg.Research.GDocs.DocumentURL = docURL
@@ -372,6 +399,7 @@ func (s *Server) handleGDocsSyncPush(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 	var body struct {
+		SessionID   string `json:"session_id"`
 		DocumentID  string `json:"document_id"`
 		DocumentURL string `json:"document_url"`
 		HTML        string `json:"html"`
@@ -384,6 +412,15 @@ func (s *Server) handleGDocsSyncPush(w http.ResponseWriter, r *http.Request) {
 	targetID := strings.TrimSpace(body.DocumentID)
 	if targetID == "" && body.DocumentURL != "" {
 		targetID = extractGoogleDocID(body.DocumentURL)
+	}
+	sessionID := strings.TrimSpace(body.SessionID)
+	if targetID == "" && sessionID != "" {
+		targetID, _ = s.db.GetKV(ctx, "research:gdocs:"+sessionID+":doc_id")
+		if targetID == "" {
+			if sURL, _ := s.db.GetKV(ctx, "research:gdocs:"+sessionID+":doc_url"); sURL != "" {
+				targetID = extractGoogleDocID(sURL)
+			}
+		}
 	}
 	if targetID == "" {
 		cfg := s.config()
@@ -469,6 +506,7 @@ func (s *Server) handleGDocsSyncPull(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 	var body struct {
+		SessionID   string `json:"session_id"`
 		DocumentID  string `json:"document_id"`
 		DocumentURL string `json:"document_url"`
 	}
@@ -477,6 +515,15 @@ func (s *Server) handleGDocsSyncPull(w http.ResponseWriter, r *http.Request) {
 	targetID := strings.TrimSpace(body.DocumentID)
 	if targetID == "" && body.DocumentURL != "" {
 		targetID = extractGoogleDocID(body.DocumentURL)
+	}
+	sessionID := strings.TrimSpace(body.SessionID)
+	if targetID == "" && sessionID != "" {
+		targetID, _ = s.db.GetKV(ctx, "research:gdocs:"+sessionID+":doc_id")
+		if targetID == "" {
+			if sURL, _ := s.db.GetKV(ctx, "research:gdocs:"+sessionID+":doc_url"); sURL != "" {
+				targetID = extractGoogleDocID(sURL)
+			}
+		}
 	}
 	if targetID == "" {
 		cfg := s.config()
@@ -522,7 +569,8 @@ func (s *Server) handleGDocsSyncPull(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update the local draft in Antares database
-	_ = s.db.SetKV(ctx, "research:draft:content", content)
+	_, cKey := draftKeys(body.SessionID)
+	_ = s.db.SetKV(ctx, cKey, content)
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status":      "success",
@@ -532,16 +580,27 @@ func (s *Server) handleGDocsSyncPull(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func draftKeys(sessionID string) (titleKey, contentKey string) {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID != "" {
+		return "research:draft:" + sessionID + ":title", "research:draft:" + sessionID + ":content"
+	}
+	return "research:draft:title", "research:draft:content"
+}
+
 func (s *Server) handleGetDraft(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	title, _ := s.db.GetKV(ctx, "research:draft:title")
-	content, _ := s.db.GetKV(ctx, "research:draft:content")
-	if title == "" {
+	sessionID := strings.TrimSpace(r.URL.Query().Get("session_id"))
+	tKey, cKey := draftKeys(sessionID)
+	title, _ := s.db.GetKV(ctx, tKey)
+	content, _ := s.db.GetKV(ctx, cKey)
+	if title == "" && sessionID == "" {
 		title = "Bab 3 - Perancangan Sistem Bilik"
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"title":   title,
-		"content": content,
+		"session_id": sessionID,
+		"title":      title,
+		"content":    content,
 	})
 }
 
@@ -551,18 +610,39 @@ func (s *Server) handleSaveDraft(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 	var body struct {
-		Title   string `json:"title"`
-		Content string `json:"content"`
+		SessionID string `json:"session_id"`
+		Title     string `json:"title"`
+		Content   string `json:"content"`
 	}
 	if err := decodeBody(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
+	tKey, cKey := draftKeys(body.SessionID)
 	if body.Title != "" {
-		_ = s.db.SetKV(ctx, "research:draft:title", body.Title)
+		_ = s.db.SetKV(ctx, tKey, body.Title)
 	}
-	_ = s.db.SetKV(ctx, "research:draft:content", body.Content)
-	writeJSON(w, http.StatusOK, map[string]any{"status": "saved"})
+	_ = s.db.SetKV(ctx, cKey, body.Content)
+	writeJSON(w, http.StatusOK, map[string]any{"status": "saved", "session_id": body.SessionID})
+}
+
+func (s *Server) handleDeleteDraft(w http.ResponseWriter, r *http.Request) {
+	if s.requireDashboardPassword(w, r) {
+		return
+	}
+	ctx := r.Context()
+	sessionID := strings.TrimSpace(r.URL.Query().Get("session_id"))
+	if sessionID == "" {
+		var body struct {
+			SessionID string `json:"session_id"`
+		}
+		_ = decodeBody(r, &body)
+		sessionID = strings.TrimSpace(body.SessionID)
+	}
+	tKey, cKey := draftKeys(sessionID)
+	_ = s.db.SetKV(ctx, tKey, "")
+	_ = s.db.SetKV(ctx, cKey, "")
+	writeJSON(w, http.StatusOK, map[string]any{"status": "deleted", "session_id": sessionID})
 }
 
 func (s *Server) handleOpenBrowser(w http.ResponseWriter, r *http.Request) {

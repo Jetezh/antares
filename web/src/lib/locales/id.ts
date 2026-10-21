@@ -1176,6 +1176,11 @@ const id: Dict = {
 
   'research.modeEdit': 'Mode Edit',
   'research.modePreview': 'Mode Pratinjau',
+  'research.deleteDraft': 'Hapus Draft',
+  'research.deleteDraftTooltip': 'Hapus draf naskah sesi ini',
+  'research.deleteDraftConfirmTitle': 'Hapus Draft Naskah',
+  'research.deleteDraftConfirmDesc': 'Apakah Anda yakin ingin menghapus draf naskah untuk sesi chat ini? Konten naskah akan dikosongkan.',
+  'research.deleteDraftConfirmBtn': 'Hapus Draft',
   'research.dragResize': 'Geser untuk mengubah lebar panel',
 
   'research.latex': 'LaTeX',

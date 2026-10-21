@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/enowdev/antares/internal/config"
+	"github.com/enowdev/antares/internal/store"
 )
 
 func TestResearchSettingsValidationAPI(t *testing.T) {
@@ -203,5 +204,80 @@ func TestOpenBrowserSecurity(t *testing.T) {
 		if rr.Code != http.StatusBadRequest {
 			t.Fatalf("expected 400 on unsupported scheme %s, got %d", sc, rr.Code)
 		}
+	}
+}
+
+func TestDraftSessionScopingAndDelete(t *testing.T) {
+	t.Setenv("ANTARES_HOME", t.TempDir())
+	cfg := config.Default()
+	cfg.Server.DashboardPasswordHash = "test-hash"
+	db, err := store.Open(t.Context(), "memory", "", 1, 5000, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := &Server{cfg: cfg, db: db}
+
+	// 1. Save draft for session A
+	saveReqA := httptest.NewRequest(http.MethodPost, "/api/research/draft", bytes.NewBufferString(`{"session_id":"ses_A","title":"Title A","content":"Content A"}`))
+	saveRRA := httptest.NewRecorder()
+	s.handleSaveDraft(saveRRA, saveReqA)
+	if saveRRA.Code != http.StatusOK {
+		t.Fatalf("expected 200 on save draft A, got %d", saveRRA.Code)
+	}
+
+	// 2. Save draft for session B
+	saveReqB := httptest.NewRequest(http.MethodPost, "/api/research/draft", bytes.NewBufferString(`{"session_id":"ses_B","title":"Title B","content":"Content B"}`))
+	saveRRB := httptest.NewRecorder()
+	s.handleSaveDraft(saveRRB, saveReqB)
+	if saveRRB.Code != http.StatusOK {
+		t.Fatalf("expected 200 on save draft B, got %d", saveRRB.Code)
+	}
+
+	// 3. Read draft for session A
+	getReqA := httptest.NewRequest(http.MethodGet, "/api/research/draft?session_id=ses_A", nil)
+	getRRA := httptest.NewRecorder()
+	s.handleGetDraft(getRRA, getReqA)
+	if !bytes.Contains(getRRA.Body.Bytes(), []byte("Content A")) {
+		t.Fatalf("expected session A draft to contain 'Content A', got %s", getRRA.Body.String())
+	}
+
+	// 4. Read draft for session B
+	getReqB := httptest.NewRequest(http.MethodGet, "/api/research/draft?session_id=ses_B", nil)
+	getRRB := httptest.NewRecorder()
+	s.handleGetDraft(getRRB, getReqB)
+	if !bytes.Contains(getRRB.Body.Bytes(), []byte("Content B")) {
+		t.Fatalf("expected session B draft to contain 'Content B', got %s", getRRB.Body.String())
+	}
+
+	// 5. Read draft for an empty/new session C
+	getReqC := httptest.NewRequest(http.MethodGet, "/api/research/draft?session_id=ses_C", nil)
+	getRRC := httptest.NewRecorder()
+	s.handleGetDraft(getRRC, getReqC)
+	if bytes.Contains(getRRC.Body.Bytes(), []byte("Content A")) || bytes.Contains(getRRC.Body.Bytes(), []byte("Content B")) {
+		t.Fatalf("new session C draft must not leak other sessions' content, got %s", getRRC.Body.String())
+	}
+
+	// 6. Delete draft for session A
+	delReqA := httptest.NewRequest(http.MethodDelete, "/api/research/draft?session_id=ses_A", nil)
+	delRRA := httptest.NewRecorder()
+	s.handleDeleteDraft(delRRA, delReqA)
+	if delRRA.Code != http.StatusOK {
+		t.Fatalf("expected 200 on delete draft A, got %d", delRRA.Code)
+	}
+
+	// Verify session A is now empty
+	getReqA2 := httptest.NewRequest(http.MethodGet, "/api/research/draft?session_id=ses_A", nil)
+	getRRA2 := httptest.NewRecorder()
+	s.handleGetDraft(getRRA2, getReqA2)
+	if bytes.Contains(getRRA2.Body.Bytes(), []byte("Content A")) {
+		t.Fatalf("expected session A to be deleted, got %s", getRRA2.Body.String())
+	}
+
+	// Verify session B is untouched
+	getReqB2 := httptest.NewRequest(http.MethodGet, "/api/research/draft?session_id=ses_B", nil)
+	getRRB2 := httptest.NewRecorder()
+	s.handleGetDraft(getRRB2, getReqB2)
+	if !bytes.Contains(getRRB2.Body.Bytes(), []byte("Content B")) {
+		t.Fatalf("expected session B to remain untouched after deleting A, got %s", getRRB2.Body.String())
 	}
 }
