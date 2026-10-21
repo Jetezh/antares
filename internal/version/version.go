@@ -5,7 +5,7 @@ package version
 var (
 	Name    = "antares"
 	Display = "Antares"
-	Version = "0.8.8"
+	Version = "0.9.0"
 	Commit  = "dev"
 	Date    = "unknown"
 )
