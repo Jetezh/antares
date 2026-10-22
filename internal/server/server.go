@@ -75,6 +75,12 @@ type Server struct {
 	// devAuth caches device-token lookups and holds handoff codes and the
 	// failed-login counters.
 	devAuth deviceAuthState
+
+	// termMu guards termCount, the number of live IDE terminal sessions. The
+	// terminal endpoint is deliberately capped: every session is a real PTY
+	// process, and an unbounded number of them is a trivial resource exhaustion.
+	termMu    sync.Mutex
+	termCount int
 }
 
 // Options configures a Server.

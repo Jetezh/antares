@@ -44,15 +44,28 @@ import { EditMessageDialog } from '@/components/chat/EditMessageDialog'
 import { SubAgentPanel, type ActiveAgent } from '@/components/chat/SubAgentPanel'
 import { ChatFolderTree } from '@/components/chat/ChatFolderTree'
 import {
-  FileViewerPanel,
   type SelectedFile,
   detectFileKind,
   getFileIcon,
 } from '@/components/chat/FileViewerPanel'
+import type { CodeWorkspaceHandle } from '@/components/chat/CodeWorkspace'
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { lazy, Suspense } from 'react'
 
 const ResearchPanel = lazy(() =>
   import('@/components/chat/ResearchPanel').then((m) => ({ default: m.ResearchPanel })),
+)
+
+const CodeWorkspace = lazy(() =>
+  import('@/components/chat/CodeWorkspace').then((m) => ({ default: m.CodeWorkspace })),
 )
 import {
   SlashPalette,
@@ -292,6 +305,11 @@ export default function ChatPage() {
   const folderTreeWidth = 260
   const [selectedViewerFile, setSelectedViewerFile] = useState<SelectedFile | null>(null)
   const [rightPanelTab, setRightPanelTab] = useState<'file' | 'research'>('research')
+  // The editor's unsaved state drives the guard when switching files or closing.
+  const workspaceRef = useRef<CodeWorkspaceHandle | null>(null)
+  const [editorDirty, setEditorDirty] = useState(false)
+  const [pendingFile, setPendingFile] = useState<SelectedFile | 'close' | null>(null)
+  const [switchSaving, setSwitchSaving] = useState(false)
 
   const [researchSplitOpen, setResearchSplitOpen] = useState(false)
   const [splitWidth, setSplitWidth] = useState<number>(() => {
@@ -318,11 +336,55 @@ export default function ChatPage() {
     })
   }, [])
 
-  const handleSelectFileFromTree = useCallback((f: SelectedFile) => {
+  const applyFileSelection = useCallback((f: SelectedFile) => {
     setSelectedViewerFile(f)
     setRightPanelTab('file')
     setResearchSplitOpen(true)
+    // The IDE panel and the project sidebar both claim the right edge; opening a
+    // file collapses the sidebar so the code keeps the room. The button restores it.
+    if (window.matchMedia('(min-width: 1024px)').matches) setSidebarOpen(false)
   }, [])
+
+  const handleSelectFileFromTree = useCallback(
+    (f: SelectedFile) => {
+      if (editorDirty && selectedViewerFile && f.path !== selectedViewerFile.path) {
+        setPendingFile(f)
+        return
+      }
+      applyFileSelection(f)
+    },
+    [editorDirty, selectedViewerFile, applyFileSelection],
+  )
+
+  const handleCloseViewer = useCallback(() => {
+    if (editorDirty) {
+      setPendingFile('close')
+      return
+    }
+    setSelectedViewerFile(null)
+    setRightPanelTab('research')
+  }, [editorDirty])
+
+  const resolvePendingFile = useCallback(
+    async (action: 'save' | 'discard') => {
+      if (action === 'save') {
+        setSwitchSaving(true)
+        const ok = await workspaceRef.current?.save()
+        setSwitchSaving(false)
+        if (!ok) return // a conflict or save error banner stays visible
+      }
+      const target = pendingFile
+      setPendingFile(null)
+      setEditorDirty(false)
+      if (target === 'close') {
+        setSelectedViewerFile(null)
+        setRightPanelTab('research')
+      } else if (target) {
+        applyFileSelection(target)
+      }
+    },
+    [pendingFile, applyFileSelection],
+  )
 
   // Drag-to-resize listener for the Research / Split View panel
   useEffect(() => {
@@ -1505,6 +1567,33 @@ export default function ChatPage() {
         initialText={editing?.content ?? ''}
         onSubmit={applyEdit}
       />
+      <Dialog
+        open={pendingFile !== null}
+        onOpenChange={(o) => {
+          if (!o) setPendingFile(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t('editor.unsaved')}</DialogTitle>
+            <DialogDescription>
+              {pendingFile === 'close' ? t('editor.unsavedClose') : t('editor.unsavedSwitch')}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody />
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setPendingFile(null)}>
+              {t('common.cancel')}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => void resolvePendingFile('discard')}>
+              {t('editor.discard')}
+            </Button>
+            <Button size="sm" loading={switchSaving} onClick={() => void resolvePendingFile('save')}>
+              {t('editor.save')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {/* Sub-agent live view: overlays the chat while keeping the main
           transcript state intact underneath, so "back to Main" is instant. */}
       {viewingAgent ? (
@@ -1751,16 +1840,30 @@ export default function ChatPage() {
             ) : null}
 
             <div className="flex-1 overflow-hidden">
-              {rightPanelTab === 'file' && selectedViewerFile ? (
-                <FileViewerPanel
-                  file={selectedViewerFile}
-                  baseDir={projectDir}
-                  onClose={() => {
-                    setSelectedViewerFile(null)
-                    setRightPanelTab('research')
-                  }}
-                />
-              ) : (
+              {/* The IDE stays mounted while the Research tab is active so its
+                  terminal session is not torn down on a tab switch. */}
+              {selectedViewerFile ? (
+                <div className={cn('h-full', rightPanelTab !== 'file' && 'hidden')}>
+                  <Suspense
+                    fallback={
+                      <div className="flex h-full w-full items-center justify-center bg-card text-muted-foreground">
+                        <p className="text-xs">{t('editor.loading')}</p>
+                      </div>
+                    }
+                  >
+                    <CodeWorkspace
+                      ref={workspaceRef}
+                      file={selectedViewerFile}
+                      baseDir={projectDir}
+                      refreshKey={sidebarRefresh}
+                      onDirtyChange={setEditorDirty}
+                      onSaved={() => setSidebarRefresh((k) => k + 1)}
+                      onClose={handleCloseViewer}
+                    />
+                  </Suspense>
+                </div>
+              ) : null}
+              {rightPanelTab === 'research' ? (
                 <Suspense
                   fallback={
                     <div className="flex h-full w-full items-center justify-center bg-card text-muted-foreground">
@@ -1775,7 +1878,7 @@ export default function ChatPage() {
                     onInsertToChat={handleInsertDraftToChat}
                   />
                 </Suspense>
-              )}
+              ) : null}
             </div>
           </div>
         </>

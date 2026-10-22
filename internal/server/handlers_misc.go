@@ -433,7 +433,131 @@ func (s *Server) handleReadFile(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"binary": true, "size": fi.Size()})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"content": string(data), "size": fi.Size()})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"content": string(data), "size": fi.Size(), "mtime": fi.ModTime().UnixMilli(),
+	})
+}
+
+// maxEditableFile caps a save. The editor loads at most 2 MB, so a larger save
+// is almost certainly a mistake (or a binary someone pasted into the editor).
+const maxEditableFile = 5 << 20
+
+// handleWriteFile saves an edited text file back to disk. It only overwrites an
+// existing regular file inside the same root handleReadFile uses — the editor
+// cannot create files, follow a symlink out of the root, or write binary data.
+//
+// Saves are atomic (temp file in the same directory, then rename) so a crash or
+// a full disk never leaves a half-written source file. When the client sends
+// expected_mtime (milliseconds, the value handleReadFile returned), a mismatch
+// means the agent changed the file after it was opened; the save is refused
+// with 409 rather than silently clobbering that work.
+func (s *Server) handleWriteFile(w http.ResponseWriter, r *http.Request) {
+	if s.requireDashboardPassword(w, r) {
+		return
+	}
+	var body struct {
+		Path          string `json:"path"`
+		Content       string `json:"content"`
+		ExpectedMtime *int64 `json:"expected_mtime"`
+	}
+	if err := decodeBody(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	if strings.TrimSpace(body.Path) == "" {
+		writeError(w, http.StatusBadRequest, errors.New("path is required"))
+		return
+	}
+	if len(body.Content) > maxEditableFile {
+		writeError(w, http.StatusRequestEntityTooLarge, errors.New("file is too large to save (over 5 MB)"))
+		return
+	}
+	if strings.IndexByte(body.Content, 0) >= 0 {
+		writeError(w, http.StatusBadRequest, errors.New("file content is binary"))
+		return
+	}
+
+	root := s.resolveFileRoot(r)
+	abs, err := safeJoin(root, body.Path)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	// Resolve symlinks before touching anything: a symlink inside the project
+	// must not become a write primitive for a file outside it.
+	realRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	realAbs, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err)
+		return
+	}
+	rel, err := filepath.Rel(realRoot, realAbs)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		writeError(w, http.StatusBadRequest, errors.New("path is outside the workspace"))
+		return
+	}
+
+	fi, err := os.Stat(realAbs)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err)
+		return
+	}
+	if !fi.Mode().IsRegular() {
+		writeError(w, http.StatusBadRequest, errors.New("path is not a regular file"))
+		return
+	}
+	if body.ExpectedMtime != nil && fi.ModTime().UnixMilli() != *body.ExpectedMtime {
+		writeError(w, http.StatusConflict, errors.New("file changed on disk since it was opened"))
+		return
+	}
+
+	dir := filepath.Dir(realAbs)
+	tmp, err := os.CreateTemp(dir, "."+filepath.Base(realAbs)+".tmp-*")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	tmpName := tmp.Name()
+	defer func() {
+		_ = os.Remove(tmpName)
+	}()
+	if _, err := tmp.WriteString(body.Content); err != nil {
+		_ = tmp.Close()
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	if err := tmp.Chmod(fi.Mode().Perm()); err != nil {
+		_ = tmp.Close()
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	if err := tmp.Close(); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	if err := os.Rename(tmpName, realAbs); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	saved, err := os.Stat(realAbs)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"saved": true, "size": saved.Size(), "mtime": saved.ModTime().UnixMilli(),
+	})
 }
 
 // isBinary reports whether b looks like non-text data (a NUL byte in the first

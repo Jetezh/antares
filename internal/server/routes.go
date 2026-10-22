@@ -185,7 +185,10 @@ func (s *Server) routes() {
 	// Files
 	m.HandleFunc("GET /api/files", s.handleListFiles)
 	m.HandleFunc("GET /api/files/read", s.handleReadFile)
+	m.HandleFunc("POST /api/files/write", s.handleWriteFile)
 	m.HandleFunc("GET /api/files/raw", s.handleRawFile)
+	// IDE terminal: a real PTY over WebSocket, confined to the project cwd.
+	m.HandleFunc("GET /api/terminal/ws", s.handleTerminalWS)
 	m.HandleFunc("GET /api/social/image", s.handleSocialImage)
 
 	// Project sessions: browse the machine's directories for the folder picker.

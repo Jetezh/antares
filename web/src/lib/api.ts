@@ -95,6 +95,19 @@ export function authedUrl(path: string): string {
   return `/api${path}${path.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`
 }
 
+/**
+ * Build a same-origin WebSocket URL for an /api endpoint. The browser
+ * WebSocket API cannot set an Authorization header, so the token rides in the
+ * query string (the terminal route is on the query-token allowlist).
+ */
+export function wsUrl(path: string): string {
+  const proto = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const host = typeof window !== 'undefined' ? window.location.host : '127.0.0.1:8787'
+  const token = getToken()
+  const query = `${path.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`
+  return `${proto}//${host}/api${path}${token ? query : ''}`
+}
+
 /** Fetch a file endpoint (with auth) and trigger a browser download. */
 export async function downloadFile(path: string, filename: string): Promise<void> {
   const res = await fetch(`/api${path}`, { headers: { ...authHeaders() } })

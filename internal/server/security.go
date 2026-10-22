@@ -22,6 +22,7 @@ func queryTokenAllowed(path string) bool {
 		"/api/swarm/stream",
 		"/api/board/stream",
 		"/api/files/raw",
+		"/api/terminal/ws",
 		"/api/social/image":
 		return true
 	default:
