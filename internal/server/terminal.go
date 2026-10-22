@@ -202,7 +202,7 @@ func (s *Server) handleTerminalWS(w http.ResponseWriter, r *http.Request) {
 		OriginPatterns: []string{"127.0.0.1:5174", "localhost:5174"},
 	})
 	if err != nil {
-		slog.Debug("terminal websocket accept failed", "error", err)
+		slog.Warn("terminal websocket accept failed", "error", err)
 		return
 	}
 	defer conn.CloseNow()

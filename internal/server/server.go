@@ -226,6 +226,14 @@ func (w *statusWriter) Flush() {
 	}
 }
 
+// Unwrap exposes the underlying writer to http.ResponseController and to
+// libraries that walk it looking for optional interfaces. WebSocket upgrades
+// in particular need the underlying http.Hijacker; without this the upgrade
+// fails with 501 because statusWriter itself cannot be hijacked.
+func (w *statusWriter) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
+}
+
 func (s *Server) withLogging(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasPrefix(r.URL.Path, "/api/") {

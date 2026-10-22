@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -110,6 +111,58 @@ func TestTerminalWSRequiresPasswordAndRunsInput(t *testing.T) {
 		if typ == websocket.MessageBinary {
 			seen.Write(data)
 			if strings.Contains(seen.String(), "ws-ready") {
+				return
+			}
+		}
+	}
+	t.Fatalf("timed out; seen %q", seen.String())
+}
+
+func TestTerminalWSUpgradesThroughMiddleware(t *testing.T) {
+	t.Setenv("ANTARES_HOME", t.TempDir())
+	dir := t.TempDir()
+
+	cfg := config.Default()
+	cfg.Agent.Workspace = dir
+	cfg.Server.AuthToken = "test-token"
+	s := &Server{
+		mux:          http.NewServeMux(),
+		cfg:          cfg,
+		dashSessions: map[string]time.Time{},
+	}
+	s.routes()
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	// The logging middleware wraps the ResponseWriter; the upgrade must still
+	// reach the underlying Hijacker (regression: statusWriter hid it → 501).
+	target := "ws://" + ts.Listener.Addr().String() + "/api/terminal/ws?dir=" + url.QueryEscape(dir) + "&token=test-token"
+	conn, resp, err := websocket.Dial(ctx, target, nil)
+	if err != nil {
+		if resp != nil {
+			t.Fatalf("dial: %v (status %d)", err, resp.StatusCode)
+		}
+		t.Fatalf("dial: %v", err)
+	}
+	defer conn.CloseNow()
+
+	msg, _ := json.Marshal(map[string]string{"type": "input", "data": "printf 'mid-ready\\n'\n"})
+	if err := conn.Write(ctx, websocket.MessageText, msg); err != nil {
+		t.Fatal(err)
+	}
+
+	deadline := time.Now().Add(5 * time.Second)
+	var seen strings.Builder
+	for time.Now().Before(deadline) {
+		typ, data, err := conn.Read(ctx)
+		if err != nil {
+			t.Fatalf("read: %v (seen %q)", err, seen.String())
+		}
+		if typ == websocket.MessageBinary {
+			seen.Write(data)
+			if strings.Contains(seen.String(), "mid-ready") {
 				return
 			}
 		}
