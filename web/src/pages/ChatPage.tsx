@@ -149,6 +149,40 @@ function pickErrorText(err: Error): string {
   return err.message
 }
 
+function extractFilesFromClipboard(clipboardData: DataTransfer | null): File[] {
+  if (!clipboardData) return []
+  const files: File[] = []
+
+  // 1. Check clipboardData.items (handles raw image buffers & screenshots on Linux, macOS, and Windows)
+  if (clipboardData.items && clipboardData.items.length > 0) {
+    for (let i = 0; i < clipboardData.items.length; i++) {
+      const item = clipboardData.items[i]
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile()
+        if (file) {
+          const fileName =
+            file.name && file.name !== 'image.png'
+              ? file.name
+              : `screenshot_${Date.now()}.png`
+          files.push(new File([file], fileName, { type: file.type || 'image/png' }))
+        }
+      }
+    }
+  }
+
+  // 2. Also check clipboardData.files (for file references copied from system file managers)
+  if (clipboardData.files && clipboardData.files.length > 0) {
+    for (let i = 0; i < clipboardData.files.length; i++) {
+      const file = clipboardData.files[i]
+      if (!files.some((f) => f.name === file.name && f.size === file.size)) {
+        files.push(file)
+      }
+    }
+  }
+
+  return files
+}
+
 interface TranscriptFooterContext {
   approvals: ApprovalView[]
   error?: string
@@ -1164,13 +1198,37 @@ export default function ChatPage() {
   }, [])
 
   // Pasting a screenshot is the fastest way to show the agent something.
-  const onPaste = (e: React.ClipboardEvent) => {
-    const files = Array.from(e.clipboardData.files)
+  const onPaste = useCallback((e: React.ClipboardEvent) => {
+    const files = extractFilesFromClipboard(e.clipboardData)
     if (files.length > 0) {
       e.preventDefault()
       void attachFiles(files)
     }
-  }
+  }, [attachFiles])
+
+  // Global paste handler: allows pasting screenshot even when textarea is not directly focused
+  useEffect(() => {
+    const handleGlobalPaste = (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement | null
+      const isOtherInput =
+        target &&
+        target !== textareaRef.current &&
+        (target.tagName === 'INPUT' || (target.tagName === 'TEXTAREA' && target !== textareaRef.current))
+
+      const files = extractFilesFromClipboard(e.clipboardData)
+      if (files.length > 0) {
+        const hasImage = files.some((f) => f.type.startsWith('image/'))
+        if (hasImage || !isOtherInput) {
+          e.preventDefault()
+          void attachFiles(files)
+          textareaRef.current?.focus()
+        }
+      }
+    }
+
+    window.addEventListener('paste', handleGlobalPaste)
+    return () => window.removeEventListener('paste', handleGlobalPaste)
+  }, [attachFiles])
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (matches.length > 0) {
