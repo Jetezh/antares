@@ -138,6 +138,8 @@ func (s *Server) routes() {
 	m.HandleFunc("POST /api/research/draft", s.handleSaveDraft)
 	m.HandleFunc("DELETE /api/research/draft", s.handleDeleteDraft)
 	m.HandleFunc("POST /api/research/draft/clear", s.handleDeleteDraft)
+	m.HandleFunc("POST /api/research/draft/export-docx", s.handleExportDOCX)
+	m.HandleFunc("GET /api/research/draft/export-docx", s.handleExportDOCX)
 	m.HandleFunc("POST /api/research/open-browser", s.handleOpenBrowser)
 
 	// Models & providers

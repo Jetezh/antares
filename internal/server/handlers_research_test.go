@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"strings"
 
 	"github.com/enowdev/antares/internal/config"
 	"github.com/enowdev/antares/internal/store"
@@ -279,5 +280,19 @@ func TestDraftSessionScopingAndDelete(t *testing.T) {
 	s.handleGetDraft(getRRB2, getReqB2)
 	if !bytes.Contains(getRRB2.Body.Bytes(), []byte("Content B")) {
 		t.Fatalf("expected session B to remain untouched after deleting A, got %s", getRRB2.Body.String())
+	}
+
+	// 7. Test Export DOCX
+	docxReq := httptest.NewRequest(http.MethodPost, "/api/research/draft/export-docx", bytes.NewBufferString(`{"title":"Test Doc","content":"# Bab 1\n\nIsi paragraf."}`))
+	docxRR := httptest.NewRecorder()
+	s.handleExportDOCX(docxRR, docxReq)
+	if docxRR.Code != http.StatusOK {
+		t.Fatalf("expected 200 on export-docx, got %d", docxRR.Code)
+	}
+	if ct := docxRR.Header().Get("Content-Type"); !strings.Contains(ct, "wordprocessingml.document") {
+		t.Fatalf("expected docx content-type, got %s", ct)
+	}
+	if docxRR.Body.Len() == 0 {
+		t.Fatal("expected non-empty docx output")
 	}
 }

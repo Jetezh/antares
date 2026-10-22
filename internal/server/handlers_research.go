@@ -9,10 +9,12 @@ import (
 	"net/url"
 	"os/exec"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/enowdev/antares/internal/config"
+	"github.com/enowdev/antares/internal/docx"
 	"github.com/enowdev/antares/internal/tools"
 )
 
@@ -643,6 +645,54 @@ func (s *Server) handleDeleteDraft(w http.ResponseWriter, r *http.Request) {
 	_ = s.db.SetKV(ctx, tKey, "")
 	_ = s.db.SetKV(ctx, cKey, "")
 	writeJSON(w, http.StatusOK, map[string]any{"status": "deleted", "session_id": sessionID})
+}
+
+func (s *Server) handleExportDOCX(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var body struct {
+		SessionID string `json:"session_id"`
+		Title     string `json:"title"`
+		Content   string `json:"content"`
+	}
+	_ = decodeBody(r, &body)
+
+	title := strings.TrimSpace(body.Title)
+	content := body.Content
+	sessionID := strings.TrimSpace(body.SessionID)
+
+	if title == "" || content == "" {
+		tKey, cKey := draftKeys(sessionID)
+		if title == "" {
+			title, _ = s.db.GetKV(ctx, tKey)
+		}
+		if content == "" {
+			content, _ = s.db.GetKV(ctx, cKey)
+		}
+	}
+
+	if title == "" {
+		title = "Dokumen Antares"
+	}
+	if content == "" {
+		content = "# " + title + "\n\n(Draf kosong)"
+	}
+
+	b, err := docx.Generate(title, content)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Errorf("failed to generate docx: %w", err))
+		return
+	}
+
+	filename := title
+	if !strings.HasSuffix(strings.ToLower(filename), ".docx") {
+		filename += ".docx"
+	}
+
+	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename=%s`, strconv.Quote(filename)))
+	w.Header().Set("Content-Length", strconv.Itoa(len(b)))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(b)
 }
 
 func (s *Server) handleOpenBrowser(w http.ResponseWriter, r *http.Request) {

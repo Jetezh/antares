@@ -11,6 +11,7 @@ import {
   CheckCircle,
   CloudArrowUp,
   Copy,
+  DownloadSimple,
   Eye,
   FileCode,
   FileText,
@@ -38,7 +39,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { del, get, post } from '@/lib/api'
+import { del, get, getToken, post } from '@/lib/api'
 import { copyText } from '@/lib/clipboard'
 import { useI18n } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
@@ -609,6 +610,8 @@ export const ResearchPanel = memo(function ResearchPanel({
   const [draftViewMode, setDraftViewMode] = useState<'edit' | 'preview'>('preview')
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [deletingDraft, setDeletingDraft] = useState(false)
+  const [downloadingDocx, setDownloadingDocx] = useState(false)
+  const [exportModalTab, setExportModalTab] = useState<'docx' | 'oauth'>('docx')
   const [exportingGdocs, setExportingGdocs] = useState(false)
   const [exportedDocUrl, setExportedDocUrl] = useState('')
   const [exportError, setExportError] = useState('')
@@ -702,6 +705,51 @@ export const ResearchPanel = memo(function ResearchPanel({
       // ignore
     } finally {
       setDeletingDraft(false)
+    }
+  }
+
+  const handleDownloadDocx = async () => {
+    setDownloadingDocx(true)
+    try {
+      let processedContent = draftContent
+      const svgMatches = processedContent.match(/<svg[\s\S]*?<\/svg>/gi) || []
+      for (const svgCode of svgMatches) {
+        const pngDataUrl = await convertSvgToPngDataUrl(svgCode)
+        if (pngDataUrl) {
+          processedContent = processedContent.replace(svgCode, `\n\n<img src="${pngDataUrl}" alt="Figure" />\n\n`)
+        }
+      }
+
+      const res = await fetch('/api/research/draft/export-docx', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
+        },
+        body: JSON.stringify({
+          title: draftTitle,
+          content: processedContent,
+          session_id: sessionId,
+        }),
+      })
+
+      if (!res.ok) {
+        throw new Error('Gagal mengunduh berkas .docx')
+      }
+
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${draftTitle || 'Dokumen_Antares'}.docx`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (e: any) {
+      alert(e?.message || 'Gagal mengunduh berkas .docx')
+    } finally {
+      setDownloadingDocx(false)
     }
   }
 
@@ -2291,7 +2339,7 @@ export const ResearchPanel = memo(function ResearchPanel({
         </DialogContent>
       </Dialog>
 
-      {/* Export to Google Docs Guide & Confirmation Modal */}
+      {/* Export to Word / Google Docs Modal */}
       <Dialog open={exportModalOpen} onOpenChange={setExportModalOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -2302,93 +2350,165 @@ export const ResearchPanel = memo(function ResearchPanel({
             <DialogDescription>{t('research.exportModalDesc')}</DialogDescription>
           </DialogHeader>
 
-          <DialogBody className="space-y-4 text-xs">
-            {/* Step 1: Google Account Checklist */}
-            <div className="space-y-2 rounded-[var(--radius-md)] border border-border bg-card p-3">
-              <p className="font-semibold text-foreground">{t('research.step1Title')}</p>
-              {googleConnected ? (
-                <div className="flex items-center gap-2 font-medium text-emerald-500">
-                  <CheckCircle className="size-4 shrink-0" />
-                  <span>Akun Google Terhubung (OAuth)</span>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 font-medium text-amber-500">
-                    <WarningCircle className="size-4 shrink-0" />
-                    <span>Akun Google Belum Terhubung</span>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    Diperlukan koneksi Google Drive untuk membuat file dokumen secara otomatis.
-                  </p>
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="h-7 gap-1.5 bg-emerald-600 text-[11px] text-white hover:bg-emerald-700"
-                    onClick={() => {
-                      setExportModalOpen(false)
-                      setSettingsTab('gdocs')
-                      setSettingsOpen(true)
-                    }}
-                  >
-                    <Key className="size-3.5" />
-                    <span>Hubungkan Akun Google di Pengaturan</span>
-                  </Button>
-                </div>
+          {/* Modal Tab Selector */}
+          <div className="flex rounded-[var(--radius-md)] border border-border bg-card/60 p-1">
+            <button
+              type="button"
+              onClick={() => setExportModalTab('docx')}
+              className={cn(
+                'flex-1 rounded-[var(--radius-sm)] py-1.5 text-xs font-medium transition-colors text-center',
+                exportModalTab === 'docx'
+                  ? 'bg-primary text-primary-foreground shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground',
               )}
-            </div>
+            >
+              📄 {t('research.tabDocxDownload')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setExportModalTab('oauth')}
+              className={cn(
+                'flex-1 rounded-[var(--radius-sm)] py-1.5 text-xs font-medium transition-colors text-center',
+                exportModalTab === 'oauth'
+                  ? 'bg-primary text-primary-foreground shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              ☁️ {t('research.tabAutoSync')}
+            </button>
+          </div>
 
-            {/* Step 2: Document Title */}
-            <div className="space-y-2 rounded-[var(--radius-md)] border border-border bg-card p-3">
-              <p className="font-semibold text-foreground">{t('research.step2Title')}</p>
-              <Input
-                type="text"
-                placeholder={t('research.draftTitlePlaceholder')}
-                value={draftTitle}
-                onChange={(e) => {
-                  setDraftTitle(e.target.value)
-                  try {
-                    localStorage.setItem('antares:draft-title', e.target.value)
-                  } catch {}
-                }}
-                className="h-8 text-xs font-medium"
-              />
-            </div>
-
-            {/* Step 3: Sharing Access & Permissions */}
-            <div className="space-y-2 rounded-[var(--radius-md)] border border-border bg-card p-3">
-              <p className="font-semibold text-foreground">{t('research.step3Title')}</p>
-              <div className="flex items-start justify-between gap-3 pt-1">
-                <div className="space-y-1">
-                  <label htmlFor="auto-share" className="font-medium text-foreground cursor-pointer text-xs">
-                    {t('research.autoShareOption')}
+          <DialogBody className="space-y-3.5 text-xs">
+            {exportModalTab === 'docx' ? (
+              <div className="space-y-3">
+                {/* Document Title Input */}
+                <div className="space-y-1.5 rounded-[var(--radius-md)] border border-border bg-card p-3">
+                  <label className="font-semibold text-foreground text-xs">
+                    {t('research.step2Title')}
                   </label>
-                  <p className="text-[11px] leading-relaxed text-muted-foreground">
-                    {t('research.autoShareHint')}
+                  <Input
+                    type="text"
+                    placeholder={t('research.draftTitlePlaceholder')}
+                    value={draftTitle}
+                    onChange={(e) => handleTitleChange(e.target.value)}
+                    className="h-8 text-xs font-medium"
+                  />
+                  <p className="text-[11px] text-muted-foreground pt-1">
+                    {t('research.tabDocxDesc')}
                   </p>
                 </div>
-                <Switch
-                  id="auto-share"
-                  checked={autoShareWithLink}
-                  onCheckedChange={setAutoShareWithLink}
-                  className="shrink-0"
-                />
+
+                {/* Primary Download Button */}
+                <Button
+                  type="button"
+                  size="default"
+                  disabled={downloadingDocx}
+                  loading={downloadingDocx}
+                  onClick={handleDownloadDocx}
+                  className="w-full gap-2 bg-emerald-600 text-sm font-medium text-white hover:bg-emerald-700 h-9"
+                >
+                  <DownloadSimple className="size-4" />
+                  <span>{downloadingDocx ? t('research.downloadingDocx') : t('research.downloadDocxBtn')}</span>
+                </Button>
+
+                {/* 3-Step Google Docs Guide */}
+                <div className="space-y-2 rounded-[var(--radius-md)] border border-emerald-500/20 bg-emerald-500/5 p-3 text-foreground">
+                  <p className="font-semibold text-emerald-600 dark:text-emerald-400">
+                    {t('research.docxHelpTitle')}
+                  </p>
+                  <div className="space-y-1 text-[11.5px] text-muted-foreground leading-relaxed">
+                    <p>{t('research.docxStep1')}</p>
+                    <p>{t('research.docxStep2')}</p>
+                    <p>{t('research.docxStep3')}</p>
+                  </div>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="space-y-3">
+                {/* Step 1: Google Account Checklist */}
+                <div className="space-y-2 rounded-[var(--radius-md)] border border-border bg-card p-3">
+                  <p className="font-semibold text-foreground">{t('research.step1Title')}</p>
+                  {googleConnected ? (
+                    <div className="flex items-center gap-2 font-medium text-emerald-500">
+                      <CheckCircle className="size-4 shrink-0" />
+                      <span>Akun Google Terhubung (OAuth)</span>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 font-medium text-amber-500">
+                        <WarningCircle className="size-4 shrink-0" />
+                        <span>Akun Google Belum Terhubung</span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Diperlukan koneksi Google Drive untuk membuat file dokumen secara otomatis.
+                      </p>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-7 gap-1.5 bg-emerald-600 text-[11px] text-white hover:bg-emerald-700"
+                        onClick={() => {
+                          setExportModalOpen(false)
+                          setSettingsTab('gdocs')
+                          setSettingsOpen(true)
+                        }}
+                      >
+                        <Key className="size-3.5" />
+                        <span>Hubungkan Akun Google di Pengaturan</span>
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Step 2: Document Title */}
+                <div className="space-y-2 rounded-[var(--radius-md)] border border-border bg-card p-3">
+                  <p className="font-semibold text-foreground">{t('research.step2Title')}</p>
+                  <Input
+                    type="text"
+                    placeholder={t('research.draftTitlePlaceholder')}
+                    value={draftTitle}
+                    onChange={(e) => handleTitleChange(e.target.value)}
+                    className="h-8 text-xs font-medium"
+                  />
+                </div>
+
+                {/* Step 3: Sharing Access & Permissions */}
+                <div className="space-y-2 rounded-[var(--radius-md)] border border-border bg-card p-3">
+                  <p className="font-semibold text-foreground">{t('research.step3Title')}</p>
+                  <div className="flex items-start justify-between gap-3 pt-1">
+                    <div className="space-y-1">
+                      <label htmlFor="auto-share" className="font-medium text-foreground cursor-pointer text-xs">
+                        {t('research.autoShareOption')}
+                      </label>
+                      <p className="text-[11px] leading-relaxed text-muted-foreground">
+                        {t('research.autoShareHint')}
+                      </p>
+                    </div>
+                    <Switch
+                      id="auto-share"
+                      checked={autoShareWithLink}
+                      onCheckedChange={setAutoShareWithLink}
+                      className="shrink-0"
+                    />
+                  </div>
+                </div>
+
+                <Button
+                  size="default"
+                  disabled={!googleConnected || exportingGdocs}
+                  loading={exportingGdocs}
+                  onClick={handleExportToGoogleDocs}
+                  className="w-full gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700 h-9"
+                >
+                  <CloudArrowUp className="size-4" />
+                  <span>{exportingGdocs ? t('research.exportingGdocs') : t('research.confirmExport')}</span>
+                </Button>
+              </div>
+            )}
           </DialogBody>
 
-          <DialogFooter className="flex items-center justify-between">
+          <DialogFooter className="flex items-center justify-end">
             <Button variant="outline" size="sm" onClick={() => setExportModalOpen(false)}>
-              {t('common.cancel')}
-            </Button>
-            <Button
-              size="sm"
-              disabled={!googleConnected || exportingGdocs}
-              loading={exportingGdocs}
-              onClick={handleExportToGoogleDocs}
-              className="gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700"
-            >
-              <CloudArrowUp className="size-3.5" />
-              <span>{exportingGdocs ? t('research.exportingGdocs') : t('research.confirmExport')}</span>
+              {t('common.close')}
             </Button>
           </DialogFooter>
         </DialogContent>
