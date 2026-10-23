@@ -11,6 +11,7 @@ import {
   Plus,
   SidebarSimple,
   Stop,
+  TerminalWindow,
   X,
 } from '@phosphor-icons/react'
 import { ApiError, get, post } from '@/lib/api'
@@ -304,11 +305,13 @@ export default function ChatPage() {
   })
   const folderTreeWidth = 260
   const [selectedViewerFile, setSelectedViewerFile] = useState<SelectedFile | null>(null)
-  const [rightPanelTab, setRightPanelTab] = useState<'file' | 'research'>('research')
+  const [rightPanelTab, setRightPanelTab] = useState<'file' | 'terminal' | 'research'>('research')
+  // Terminal can outlive the file tab: closing the editor returns to the shell.
+  const [terminalOpened, setTerminalOpened] = useState(false)
   // The editor's unsaved state drives the guard when switching files or closing.
   const workspaceRef = useRef<CodeWorkspaceHandle | null>(null)
   const [editorDirty, setEditorDirty] = useState(false)
-  const [pendingFile, setPendingFile] = useState<SelectedFile | 'close' | null>(null)
+  const [pendingFile, setPendingFile] = useState<SelectedFile | 'close' | 'close-split' | null>(null)
   const [switchSaving, setSwitchSaving] = useState(false)
 
   const [researchSplitOpen, setResearchSplitOpen] = useState(false)
@@ -340,6 +343,7 @@ export default function ChatPage() {
     setSelectedViewerFile(f)
     setRightPanelTab('file')
     setResearchSplitOpen(true)
+    setTerminalOpened(true)
     // The IDE panel and the project sidebar both claim the right edge; opening a
     // file collapses the sidebar so the code keeps the room. The button restores it.
     if (window.matchMedia('(min-width: 1024px)').matches) setSidebarOpen(false)
@@ -356,14 +360,56 @@ export default function ChatPage() {
     [editorDirty, selectedViewerFile, applyFileSelection],
   )
 
+  const closeSplit = useCallback(() => {
+    setSelectedViewerFile(null)
+    setEditorDirty(false)
+    setTerminalOpened(false)
+    setResearchSplitOpen(false)
+    setRightPanelTab('research')
+  }, [])
+
+  const requestCloseSplit = useCallback(() => {
+    if (editorDirty) {
+      setPendingFile('close-split')
+      return
+    }
+    closeSplit()
+  }, [editorDirty, closeSplit])
+
   const handleCloseViewer = useCallback(() => {
     if (editorDirty) {
       setPendingFile('close')
       return
     }
     setSelectedViewerFile(null)
-    setRightPanelTab('research')
+    setRightPanelTab('terminal')
   }, [editorDirty])
+
+  const handlePathRenamed = useCallback((oldPath: string, newPath: string) => {
+    setSelectedViewerFile((prev) => {
+      if (!prev) return prev
+      if (prev.path === oldPath) {
+        return { ...prev, path: newPath, name: newPath.split('/').pop() || prev.name }
+      }
+      if (prev.path.startsWith(`${oldPath}/`)) {
+        return { ...prev, path: newPath + prev.path.slice(oldPath.length) }
+      }
+      return prev
+    })
+    setSidebarRefresh((k) => k + 1)
+  }, [])
+
+  const handlePathDeleted = useCallback((path: string) => {
+    if (
+      selectedViewerFile &&
+      (selectedViewerFile.path === path || selectedViewerFile.path.startsWith(`${path}/`))
+    ) {
+      setSelectedViewerFile(null)
+      setRightPanelTab('terminal')
+      setTerminalOpened(true)
+    }
+    setSidebarRefresh((k) => k + 1)
+  }, [selectedViewerFile])
 
   const resolvePendingFile = useCallback(
     async (action: 'save' | 'discard') => {
@@ -376,14 +422,16 @@ export default function ChatPage() {
       const target = pendingFile
       setPendingFile(null)
       setEditorDirty(false)
-      if (target === 'close') {
+      if (target === 'close-split') {
+        closeSplit()
+      } else if (target === 'close') {
         setSelectedViewerFile(null)
-        setRightPanelTab('research')
+        setRightPanelTab('terminal')
       } else if (target) {
         applyFileSelection(target)
       }
     },
-    [pendingFile, applyFileSelection],
+    [pendingFile, applyFileSelection, closeSplit],
   )
 
   // Drag-to-resize listener for the Research / Split View panel
@@ -1368,10 +1416,6 @@ export default function ChatPage() {
     setInput(value)
   }, [historyPos])
 
-  const handleCloseResearchSplit = useCallback(() => {
-    setResearchSplitOpen(false)
-  }, [])
-
   const handleInsertDraftToChat = useCallback((text: string) => {
     setInput(text)
     textareaRef.current?.focus()
@@ -1553,6 +1597,8 @@ export default function ChatPage() {
             onSelectFile={handleSelectFileFromTree}
             onClose={() => toggleFolderTree()}
             refreshKey={sidebarRefresh}
+            onPathRenamed={handlePathRenamed}
+            onPathDeleted={handlePathDeleted}
           />
         </div>
       ) : null}
@@ -1577,7 +1623,7 @@ export default function ChatPage() {
           <DialogHeader>
             <DialogTitle>{t('editor.unsaved')}</DialogTitle>
             <DialogDescription>
-              {pendingFile === 'close' ? t('editor.unsavedClose') : t('editor.unsavedSwitch')}
+              {pendingFile === 'close' || pendingFile === 'close-split' ? t('editor.unsavedClose') : t('editor.unsavedSwitch')}
             </DialogDescription>
           </DialogHeader>
           <DialogBody />
@@ -1627,9 +1673,30 @@ export default function ChatPage() {
           <span className="hidden md:inline">{t('chat.folderTree')}</span>
         </Button>
         <Button
-          variant={researchSplitOpen ? 'default' : 'outline'}
+          variant={researchSplitOpen && rightPanelTab === 'terminal' ? 'default' : 'outline'}
           size="sm"
-          onClick={() => setResearchSplitOpen((v) => !v)}
+          onClick={() => {
+            setResearchSplitOpen(true)
+            setTerminalOpened(true)
+            setRightPanelTab('terminal')
+          }}
+          className="gap-1.5"
+          title={t('editor.terminal')}
+        >
+          <TerminalWindow className="size-4" />
+          <span className="hidden md:inline">{t('editor.terminal')}</span>
+        </Button>
+        <Button
+          variant={researchSplitOpen && rightPanelTab === 'research' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => {
+            if (researchSplitOpen && rightPanelTab === 'research') {
+              requestCloseSplit()
+              return
+            }
+            setResearchSplitOpen(true)
+            setRightPanelTab('research')
+          }}
           className="gap-1.5"
           title="Toggle Split View Zotero & Google Docs"
         >
@@ -1806,9 +1873,8 @@ export default function ChatPage() {
               isDraggingSplit && 'select-none pointer-events-none',
             )}
           >
-            {/* Split Header Tabs when file is opened */}
-            {selectedViewerFile ? (
-              <div className="flex items-center gap-1 border-b border-border bg-background/80 px-3 py-1.5 text-xs shrink-0">
+            <div className="flex shrink-0 items-center gap-1 border-b border-border bg-background/80 px-3 py-1.5 text-xs">
+              {selectedViewerFile ? (
                 <button
                   type="button"
                   onClick={() => setRightPanelTab('file')}
@@ -1820,30 +1886,57 @@ export default function ChatPage() {
                   )}
                 >
                   {getFileIcon(detectFileKind(selectedViewerFile.name), 'size-3.5 shrink-0')}
-                  <span className="truncate max-w-[140px]">{selectedViewerFile.name}</span>
+                  <span className="max-w-[140px] truncate">{selectedViewerFile.name}</span>
                 </button>
+              ) : null}
 
-                <button
-                  type="button"
-                  onClick={() => setRightPanelTab('research')}
-                  className={cn(
-                    'inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] px-2.5 py-1 text-xs font-medium transition-colors',
-                    rightPanelTab === 'research'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:bg-raised hover:text-foreground',
-                  )}
-                >
-                  <BookOpen className="size-3.5 shrink-0" />
-                  <span>{t('chat.researchDocs')}</span>
-                </button>
-              </div>
-            ) : null}
+              <button
+                type="button"
+                onClick={() => {
+                  setTerminalOpened(true)
+                  setRightPanelTab('terminal')
+                }}
+                className={cn(
+                  'inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] px-2.5 py-1 text-xs font-medium transition-colors',
+                  rightPanelTab === 'terminal'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-raised hover:text-foreground',
+                )}
+              >
+                <TerminalWindow className="size-3.5 shrink-0" />
+                <span>{t('editor.terminal')}</span>
+              </button>
 
-            <div className="flex-1 overflow-hidden">
-              {/* The IDE stays mounted while the Research tab is active so its
-                  terminal session is not torn down on a tab switch. */}
-              {selectedViewerFile ? (
-                <div className={cn('h-full', rightPanelTab !== 'file' && 'hidden')}>
+              <button
+                type="button"
+                onClick={() => setRightPanelTab('research')}
+                className={cn(
+                  'inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] px-2.5 py-1 text-xs font-medium transition-colors',
+                  rightPanelTab === 'research'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-raised hover:text-foreground',
+                )}
+              >
+                <BookOpen className="size-3.5 shrink-0" />
+                <span>{t('chat.researchDocs')}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={requestCloseSplit}
+                title={t('common.close')}
+                aria-label={t('common.close')}
+                className="ml-auto rounded-[var(--radius-sm)] p-1 text-muted-foreground transition-colors hover:bg-raised hover:text-foreground"
+              >
+                <X className="size-3.5" />
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-hidden">
+              {/* The IDE stays mounted while another tab is active so the
+                  terminal session and editor buffer survive tab switches. */}
+              {selectedViewerFile || terminalOpened ? (
+                <div className={cn('h-full', rightPanelTab === 'research' && 'hidden')}>
                   <Suspense
                     fallback={
                       <div className="flex h-full w-full items-center justify-center bg-card text-muted-foreground">
@@ -1854,6 +1947,7 @@ export default function ChatPage() {
                     <CodeWorkspace
                       ref={workspaceRef}
                       file={selectedViewerFile}
+                      showEditor={rightPanelTab === 'file' && selectedViewerFile !== null}
                       baseDir={projectDir}
                       refreshKey={sidebarRefresh}
                       onDirtyChange={setEditorDirty}
@@ -1874,7 +1968,7 @@ export default function ChatPage() {
                   <ResearchPanel
                     sessionId={sessionId}
                     refreshKey={sidebarRefresh}
-                    onClose={handleCloseResearchSplit}
+                    onClose={requestCloseSplit}
                     onInsertToChat={handleInsertDraftToChat}
                   />
                 </Suspense>

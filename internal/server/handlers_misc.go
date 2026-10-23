@@ -560,6 +560,232 @@ func (s *Server) handleWriteFile(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// resolveEntryDestination validates a create/rename/delete target against the
+// workspace root. It resolves symlinks for the *parent* so a link inside the
+// project cannot turn into a write/delete primitive outside it, and returns the
+// real parent plus the target path under it. The target itself may or may not
+// exist.
+func resolveEntryDestination(root, target string) (realParent, dest string, err error) {
+	if strings.TrimSpace(target) == "" {
+		return "", "", errors.New("path is required")
+	}
+	joined, err := safeJoin(root, target)
+	if err != nil {
+		return "", "", err
+	}
+	rel, err := filepath.Rel(root, joined)
+	if err != nil {
+		return "", "", err
+	}
+	if rel == "." {
+		return "", "", errors.New("cannot modify the workspace root")
+	}
+	base := filepath.Base(joined)
+	if base == "." || base == ".." || base == "" || base == string(filepath.Separator) {
+		return "", "", errors.New("invalid file name")
+	}
+
+	realRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", "", err
+	}
+	realParent, err = filepath.EvalSymlinks(filepath.Dir(joined))
+	if err != nil {
+		return "", "", err
+	}
+	fi, err := os.Stat(realParent)
+	if err != nil {
+		return "", "", err
+	}
+	if !fi.IsDir() {
+		return "", "", errors.New("parent is not a directory")
+	}
+	relParent, err := filepath.Rel(realRoot, realParent)
+	if err != nil || relParent == ".." || strings.HasPrefix(relParent, ".."+string(filepath.Separator)) {
+		return "", "", errors.New("path is outside the workspace")
+	}
+	return realParent, filepath.Join(realParent, base), nil
+}
+
+// validEntryName rejects names that are empty, traverse, or span directories.
+// Creation and rename accept only a single path segment.
+func validEntryName(name string) error {
+	if name == "" || name == "." || name == ".." {
+		return errors.New("name is required")
+	}
+	if strings.ContainsAny(name, `/\`) {
+		return errors.New("name cannot contain a path separator")
+	}
+	if strings.IndexByte(name, 0) >= 0 {
+		return errors.New("name contains a NUL byte")
+	}
+	if len(name) > 255 {
+		return errors.New("name is too long")
+	}
+	return nil
+}
+
+// handleCreateFile creates one empty file or directory inside the workspace.
+// Existing paths are never overwritten.
+func (s *Server) handleCreateFile(w http.ResponseWriter, r *http.Request) {
+	if s.requireDashboardPassword(w, r) {
+		return
+	}
+	var body struct {
+		Path string `json:"path"`
+		Type string `json:"type"`
+	}
+	if err := decodeBody(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	body.Type = strings.ToLower(strings.TrimSpace(body.Type))
+	if body.Type != "file" && body.Type != "dir" {
+		writeError(w, http.StatusBadRequest, errors.New(`type must be "file" or "dir"`))
+		return
+	}
+	if err := validEntryName(filepath.Base(filepath.Clean(body.Path))); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	root := s.resolveFileRoot(r)
+	_, dest, err := resolveEntryDestination(root, body.Path)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	if _, err := os.Lstat(dest); err == nil {
+		writeError(w, http.StatusConflict, errors.New("an item with that name already exists"))
+		return
+	} else if !os.IsNotExist(err) {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	isDir := body.Type == "dir"
+	if isDir {
+		err = os.Mkdir(dest, 0o755)
+	} else {
+		var f *os.File
+		f, err = os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+		if err == nil {
+			err = f.Close()
+		}
+	}
+	if err != nil {
+		if os.IsExist(err) {
+			writeError(w, http.StatusConflict, errors.New("an item with that name already exists"))
+			return
+		}
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"path":   filepath.ToSlash(filepath.Clean(body.Path)),
+		"name":   filepath.Base(dest),
+		"is_dir": isDir,
+	})
+}
+
+// handleRenameFile renames one entry within its current parent. The name is a
+// single segment; moving between directories is intentionally not supported.
+func (s *Server) handleRenameFile(w http.ResponseWriter, r *http.Request) {
+	if s.requireDashboardPassword(w, r) {
+		return
+	}
+	var body struct {
+		Path string `json:"path"`
+		Name string `json:"name"`
+	}
+	if err := decodeBody(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	body.Name = strings.TrimSpace(body.Name)
+	if err := validEntryName(body.Name); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	root := s.resolveFileRoot(r)
+	realParent, source, err := resolveEntryDestination(root, body.Path)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	fi, err := os.Lstat(source)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err)
+		return
+	}
+	if fi.Mode()&os.ModeSymlink != 0 {
+		writeError(w, http.StatusBadRequest, errors.New("cannot rename a symlink"))
+		return
+	}
+	dest := filepath.Join(realParent, body.Name)
+	if dest == source {
+		writeJSON(w, http.StatusOK, map[string]any{"renamed": true, "path": filepath.ToSlash(filepath.Clean(body.Path)), "name": body.Name})
+		return
+	}
+	if _, err := os.Lstat(dest); err == nil {
+		writeError(w, http.StatusConflict, errors.New("an item with that name already exists"))
+		return
+	} else if !os.IsNotExist(err) {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	if err := os.Rename(source, dest); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	parent := filepath.Dir(filepath.Clean(body.Path))
+	if parent == "." {
+		parent = ""
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"renamed": true,
+		"path":    filepath.ToSlash(filepath.Join(parent, body.Name)),
+		"name":    body.Name,
+	})
+}
+
+// handleDeleteFile removes a file, or a directory when recursive=1. Without
+// recursive, a non-empty directory is refused so a misclick cannot wipe a tree.
+func (s *Server) handleDeleteFile(w http.ResponseWriter, r *http.Request) {
+	if s.requireDashboardPassword(w, r) {
+		return
+	}
+	root := s.resolveFileRoot(r)
+	_, target, err := resolveEntryDestination(root, r.URL.Query().Get("path"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	fi, err := os.Lstat(target)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err)
+		return
+	}
+	recursive := r.URL.Query().Get("recursive") == "1"
+	if fi.IsDir() {
+		if recursive {
+			err = os.RemoveAll(target)
+		} else {
+			err = os.Remove(target)
+			if err != nil && !os.IsNotExist(err) {
+				writeError(w, http.StatusConflict, errors.New("directory is not empty"))
+				return
+			}
+		}
+	} else {
+		err = os.Remove(target)
+	}
+	if err != nil && !os.IsNotExist(err) {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"deleted": true})
+}
+
 // isBinary reports whether b looks like non-text data (a NUL byte in the first
 // 8 KB is a reliable, cheap signal).
 func isBinary(b []byte) bool {

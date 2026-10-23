@@ -186,6 +186,9 @@ func (s *Server) routes() {
 	m.HandleFunc("GET /api/files", s.handleListFiles)
 	m.HandleFunc("GET /api/files/read", s.handleReadFile)
 	m.HandleFunc("POST /api/files/write", s.handleWriteFile)
+	m.HandleFunc("POST /api/files/create", s.handleCreateFile)
+	m.HandleFunc("POST /api/files/rename", s.handleRenameFile)
+	m.HandleFunc("DELETE /api/files", s.handleDeleteFile)
 	m.HandleFunc("GET /api/files/raw", s.handleRawFile)
 	// IDE terminal: a real PTY over WebSocket, confined to the project cwd.
 	m.HandleFunc("GET /api/terminal/ws", s.handleTerminalWS)
